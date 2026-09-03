@@ -1,0 +1,22 @@
+##
+Adopted from CodingBat
+
+Given 2 ints, a and b, return true if one if them is 10 or if their sum is 10.
+
+makes10(9, 10) → true
+makes10(9, 9) → false
+makes10(1, 9) → true
+##
+
+db num1 8;
+db num2 1;
+
+cm num1 10;
+    j e mv TRUE kernel;
+    j ne cm num2 10;
+        j e mv TRUE kernel;
+        j ne add num1 num2;
+        j ne cm num1 10;
+            j e mv TRUE kernel;
+            j ne mv FALSE kernel;
+sy launch kernel;

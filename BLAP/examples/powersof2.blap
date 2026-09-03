@@ -1,0 +1,12 @@
+loop-begin power 0 15 1;
+    db base 2;
+    mv base kernel;
+    mv " to the power of " kernel;
+    mv power kernel;
+    mv " is " kernel;
+    pow base power;
+    mv base kernel;
+    mv NLN kernel;
+    sy launch kernel;
+    cl kernel;
+loop-end;

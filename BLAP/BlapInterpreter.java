@@ -1,0 +1,392 @@
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.StringTokenizer;
+import java.util.regex.Pattern;
+
+public class BlapInterpreter {
+    private static final HashMap<String, Object> variables = new HashMap<>();
+    private static ArrayList<Object> kernel = new ArrayList<>();
+    private static int currentLine = 0;
+    private static int lastComparison = 0;
+
+    private static class Break extends RuntimeException {}
+    private static class Continue extends RuntimeException {}
+
+    private static final record Command(int lineNum, String keyword, String[] parts) {}
+
+    public static void main(String[] args) {
+        if (args.length != 1 || !args[0].endsWith(".blap")) {
+            error("Usage: java BlapInterpreter <BLAP file>", 0);
+            return;
+        }
+        String filePath = args[0];
+        String code;
+        try {
+            code = Files.readString(Path.of(filePath));
+        } catch (IOException e) {
+            error("Error: Could not read file " + filePath, 0);
+            return;
+        }
+
+        code = Pattern.compile("(?s)##.*?##").matcher(code).replaceAll(matchResult -> {
+            long newlineCount = matchResult.group().chars().filter(ch -> ch == '\n').count();
+            return "\n".repeat((int) newlineCount);
+        });
+
+        organizeCode(code);
+    }
+
+    private static void organizeCode(String code) {
+        variables.put("NLN", "\n");
+
+        List<Command> commands = new ArrayList<>();
+        StringTokenizer st = new StringTokenizer(code, ";");
+        int line = 0;
+
+        while (st.hasMoreTokens()) {
+            line++;
+            String statement = st.nextToken().trim();
+            if (statement.isEmpty() || statement.startsWith("-#")) continue;
+
+            String[] parts = statement.split("\\s+(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", 3);
+            commands.add(new Command(line, parts[0], parts));
+        }
+
+        runCode(commands);
+    }
+
+    private static void runCode(List<Command> commands) {
+        int i = 0;
+        while (i < commands.size()) {
+            Command cmd = commands.get(i);
+            currentLine = cmd.lineNum();
+
+            if (cmd.keyword().equals("loop-begin")) {
+                int depth = 1;
+                int endIdx = i + 1;
+                while (endIdx < commands.size()) {
+                    if (commands.get(endIdx).keyword().equals("loop-begin")) {
+                        depth++;
+                    } else if (commands.get(endIdx).keyword().equals("loop-end")) {
+                        depth--;
+                        if (depth == 0) break;
+                    }
+                    endIdx++;
+                }
+
+                if (depth != 0) {
+                    error("Unmatched loop-begin block", cmd.lineNum());
+                }
+
+                List<Command> loopBodyRaw = commands.subList(i + 1, endIdx);
+                List<Command> alwCommands = new ArrayList<>();
+                List<Command> loopBody = new ArrayList<>();
+
+
+                for (Command c : loopBodyRaw) {
+                    if (c.keyword().equals("alw")) {
+                        if (c.parts().length < 2) {
+                            error("alw requires a command to schedule", c.lineNum());
+                        }
+                        String targetCommandStr = c.parts()[1] + (c.parts().length > 2 ? " " + c.parts()[2] : "");
+                        String[] targetParts = targetCommandStr.split("\\s+(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", 3);
+                        alwCommands.add(new Command(c.lineNum(), targetParts[0], targetParts));
+                    } else {
+                        loopBody.add(c);
+                    }
+                }
+
+                String varName = cmd.parts()[1];
+                String[] sequence = cmd.parts()[2].split("\\s+");
+                
+                double start = extractNumber(sequence[0]);
+                double end = extractNumber(sequence[1]);
+                double step = extractNumber(sequence[2]);
+
+                for (double val = start; val < end; val += step) {
+                    if (val == (int) val) {
+                        variables.put(varName, (int) val);
+                    } else {
+                        variables.put(varName, val);
+                    }
+
+                    boolean isBreak = false;
+                    try {
+                        runCode(loopBody);
+                    } catch (Continue c) {} 
+                      catch (Break b) {
+                        isBreak = true;
+                    } finally {
+                        if (!isBreak) {
+                            for (Command alwCmd : alwCommands) {
+                                currentLine = alwCmd.lineNum();
+                                runCommand(alwCmd);
+                            }
+                        }
+                    }
+                    
+                    if (isBreak) break;
+                }
+
+                i = endIdx + 1;
+            } else {
+                runCommand(cmd);
+                i++;
+            }
+        }
+    }
+
+    private static void runCommand(Command cmd) {
+        String[] parts = cmd.parts();
+        switch (cmd.keyword()) {
+            case "alw" -> error("alw can only be used in a loop!", cmd.lineNum());
+            case "db" -> db(parts);
+            case "add" -> add(parts);
+            case "sub" -> sub(parts);
+            case "mul" -> mul(parts);
+            case "div" -> div(parts);
+            case "pow" -> pow(parts);
+            case "mod" -> mod(parts);
+            case "flr" -> floor(parts);
+            case "ceil" -> ceil(parts);
+            case "ascii" -> ascii(parts);
+            case "sy" -> sy(parts);
+            case "mv" -> mv(parts);
+            case "cl" -> cl(parts);
+            case "cm" -> cm(parts);
+            case "j" -> j(parts);
+            case "brk" -> throw new Break();
+            case "cnt" -> throw new Continue();
+            case "loop-end" -> error("Unexpected loop-end encountered", cmd.lineNum());
+            case "end" -> System.exit(0);
+            default -> error(parts[0] + " did not match any keyword!", cmd.lineNum());
+        }
+    }
+
+    private static Number parseNumber(String val) throws NumberFormatException {
+        try {
+            return Long.parseLong(val);
+        } catch (NumberFormatException e) {
+            return Double.parseDouble(val);
+        }
+    }
+
+    private static double extractNumber(String token) {
+        try {
+            return parseNumber(token).doubleValue();
+        } catch (NumberFormatException ignored) {}
+
+        if (variables.containsKey(token)) {
+            Object obj = variables.get(token);
+            if (obj instanceof Number num) {
+                return num.doubleValue();
+            }
+            error("Variable " + token + " is not a number!", currentLine);
+        }
+        
+        error("Value " + token + " is not a valid number!", currentLine);
+        return 0;
+    }
+
+    private static Number formatNumber(double result) {
+        if (result == (long) result) return (long) result;
+        return result;
+    }
+
+    private static void ascii(String[] parts) {
+        Object val = variables.get(parts[1]);
+        if (val instanceof String v && v.length() == 1) variables.put(parts[1], (long) v.charAt(0));
+        else if (val instanceof Long) variables.put(parts[1], String.valueOf((char) ((Number) val).longValue()));
+        else error("Value " + val + " is not a valid Character or Integer!", currentLine);
+    }
+
+    private static void cm(String[] parts) {
+        if (parts.length < 3) {
+            error("cm requires two arguments to compare", currentLine);
+        }
+        String[] nums = parts[2].split("\\s+");
+        double n1 = extractNumber(parts[1]);
+        double n2 = extractNumber(nums[0]);
+
+        lastComparison = Double.compare(n1, n2);
+    }
+
+    private static void j(String[] parts) {
+        if (parts.length < 3) {
+            error("j requires a comparator and a command to execute", currentLine);
+        }
+
+        String comparator = parts[1];
+        String targetCommandStr = parts[2];
+
+        boolean conditionMet = switch (comparator) {
+            case "l" -> lastComparison < 0;
+            case "nl" -> !(lastComparison < 0);
+            case "le" -> lastComparison <= 0;
+            case "nle" -> !(lastComparison <= 0);
+            case "e" -> lastComparison == 0;
+            case "ne" -> !(lastComparison == 0);
+            case "ge" -> lastComparison >= 0;
+            case "nge" -> !(lastComparison >= 0);
+            case "g" -> lastComparison > 0;
+            case "ng" -> !(lastComparison > 0);
+            default -> {
+                error("Unknown comparator: " + comparator, currentLine);
+                yield false;
+            }
+        };
+
+        if (conditionMet) {
+            String[] targetParts = targetCommandStr.split("\\s+(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", 3);
+            runCommand(new Command(currentLine, targetParts[0], targetParts));
+        }
+    }
+
+    private static void db(String[] parts) {
+        String val = parts[2];
+        try {
+            variables.put(parts[1], parseNumber(val));
+            return;
+        } catch (NumberFormatException ignored) {}
+
+        if (val.equalsIgnoreCase("TRUE") || val.equalsIgnoreCase("FALSE")) {
+            variables.put(parts[1], Boolean.valueOf(val.toLowerCase()));
+            return;
+        } else if (val.startsWith("\"") && val.endsWith("\"")) {
+            variables.put(parts[1], val.substring(1, val.length() - 1));
+            return;
+        } else if (variables.containsKey(val)) {
+            variables.put(parts[1], variables.get(val));
+            return;
+        }
+        error("Invalid value type: " + val, currentLine);
+    }
+
+    private static void add(String[] parts) {
+        Object current = variables.get(parts[1]);
+        if (current instanceof String val) {
+            String addend = variables.containsKey(parts[2]) ? String.valueOf(variables.get(parts[2])) : parts[2].replaceAll("^\"|\"$", "");
+            variables.put(parts[1], val + addend);
+        } else {
+            double target = extractNumber(parts[1]);
+            double addend = extractNumber(parts[2]);
+            variables.put(parts[1], formatNumber(target + addend));
+        }
+    }
+
+    private static void sub(String[] parts) {
+        double subbed = extractNumber(parts[1]);
+        double toSub = extractNumber(parts[2]);
+        variables.put(parts[1], formatNumber(subbed - toSub));
+    }
+
+    private static void mul(String[] parts) {
+        Object current = variables.get(parts[1]);
+        if (current instanceof String value) {
+            StringBuilder totalString = new StringBuilder();
+            int multiplier = (int) extractNumber(parts[2]);
+            for (int i = 0; i < multiplier; i++) {
+                totalString.append(value);
+            }
+            variables.put(parts[1], totalString.toString());
+        } else {
+            double value = extractNumber(parts[1]);
+            double multiplier = extractNumber(parts[2]);
+            variables.put(parts[1], formatNumber(value * multiplier));
+        }
+    }
+
+    private static void div(String[] parts) {
+        double dividend = extractNumber(parts[1]);
+        double divisor = extractNumber(parts[2]);
+        variables.put(parts[1], formatNumber(dividend / divisor));
+    }
+
+    private static void pow(String[] parts) {
+        double base = extractNumber(parts[1]);
+        double power = extractNumber(parts[2]);
+        variables.put(parts[1], formatNumber(Math.pow(base, power)));
+    }
+
+    private static void mod(String[] parts) {
+        double val = extractNumber(parts[1]);
+        double modBy = extractNumber(parts[2]);
+        variables.put(parts[1], formatNumber(val % modBy));
+    }
+
+    private static void floor(String[] parts) {
+        double val = extractNumber(parts[1]);
+        variables.put(parts[1], formatNumber(Math.floor(val)));
+    }
+
+    private static void ceil(String[] parts) {
+        double val = extractNumber(parts[1]);
+        variables.put(parts[1], formatNumber(Math.ceil(val)));
+    }
+
+    private static void sy(String[] parts) {
+        if (!parts[1].equals("launch") || !parts[2].equals("kernel")) {
+            error("sy can only launch kernel right now!", currentLine);
+        }
+        for (Object e : kernel) {
+            if ("\\n".equals(e)) {
+                System.out.print("\n");
+            } else {
+                System.out.print(e);
+            }
+        }
+    }
+
+    private static void mv(String[] parts) {
+        Object part1;
+        try {
+            part1 = parseNumber(parts[1]);
+        } catch (NumberFormatException l) {
+            if (parts[1].equalsIgnoreCase("TRUE") || parts[1].equalsIgnoreCase("FALSE")) {
+                part1 = Boolean.valueOf(parts[1].toLowerCase());
+            } else if (parts[1].length() >= 2 && parts[1].startsWith("\"") && parts[1].endsWith("\"")) {
+                part1 = parts[1].substring(1, parts[1].length() - 1);
+            } else if (variables.containsKey(parts[1])) {
+                part1 = variables.get(parts[1]);
+            } else {
+                error("Variable " + parts[1] + " could not be found!", currentLine);
+                return;
+            }
+        }
+
+        if (parts[2].equals("kernel")) {
+            kernel.add(part1);
+        } else if (variables.containsKey(parts[2])) {
+            variables.put(parts[2], part1);
+        } else {
+            error("Target location [" + parts[2] + "] not found!", currentLine);
+        }
+    }
+
+    private static void cl(String[] parts) {
+        if (parts[1].equals("kernel")) {
+            kernel.clear();
+        } else if (parts[1].equals("*kernel")) {
+            kernel = null;
+        } else if (parts[1].startsWith("*") && variables.containsKey(parts[1].substring(1))) {
+            variables.remove(parts[1].substring(1));
+        } else if (variables.containsKey(parts[1])) {
+            Object obj = variables.get(parts[1]);
+            if (obj instanceof Number) variables.put(parts[1], 0);
+            else if (obj instanceof Boolean) variables.put(parts[1], false);
+            else if (obj instanceof String) variables.put(parts[1], "");
+            else error("Variable " + parts[1] + " is not an allowed type! [" + parts[1].getClass().getSimpleName() + "]", currentLine);
+        } else {
+            error("Cannot find variable " + parts[1], currentLine);
+        }
+    }
+
+    private static void error(String error, int lineNum) {
+        System.err.println("BLAP Program Exception on Line " + lineNum + ": " + error);
+        System.exit(1);
+    }
+}

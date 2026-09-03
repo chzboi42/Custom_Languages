@@ -1,0 +1,23 @@
+loop-begin i 0 16 1;
+    db c3 i;
+    db c5 i;
+    mod c3 3;
+    mod c5 5;
+
+    cm c3 0;
+        j e cm c5 0;
+            j e mv "FizzBuzz" kernel;
+            j e cnt;
+    cm c3 0;
+        j e mv "Fizz" kernel;
+        j e cnt;
+    cm c5 0;
+        j e mv "Buzz" kernel;
+        j e cnt;
+    mv i kernel;
+
+    alw mv NLN kernel;
+    alw sy launch kernel;
+    alw cl kernel; 
+
+loop-end;

@@ -1,0 +1,3 @@
+mv "Hello, World!" kernel;
+mv NLN kernel;
+sy launch kernel;
