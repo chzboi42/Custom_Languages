@@ -2,8 +2,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.StringTokenizer;
 import java.util.regex.Pattern;
 
@@ -16,7 +18,15 @@ public class BlapInterpreter {
     private static class Break extends RuntimeException {}
     private static class Continue extends RuntimeException {}
 
+    private static class Return extends RuntimeException {
+        final Object value;
+        Return(Object value) {
+            this.value = value;
+        }
+    }
+
     private static final record Command(int lineNum, String keyword, String[] parts) {}
+    private static final record Function(List<String> params, List<Command> commands) {}
 
     public static void main(String[] args) {
         if (args.length != 1 || !args[0].endsWith(".blap")) {
@@ -42,6 +52,7 @@ public class BlapInterpreter {
 
     private static void organizeCode(String code) {
         variables.put("NLN", "\n");
+        variables.put("RETF", null);
 
         List<Command> commands = new ArrayList<>();
         StringTokenizer st = new StringTokenizer(code, ";");
@@ -53,6 +64,43 @@ public class BlapInterpreter {
             if (statement.isEmpty() || statement.startsWith("-#")) continue;
 
             String[] parts = statement.split("\\s+(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", 3);
+
+            if (parts[0].equals("db") && parts.length > 1 && parts[1].contains(":")) {
+                String[] funcSig = parts[1].split(":");
+                String funcName = funcSig[0];
+                
+                List<String> params = new ArrayList<>();
+                for (int p = 1; p < funcSig.length; p++) {
+                    params.add(funcSig[p]);
+                }
+                
+                List<Command> funcBody = new ArrayList<>();
+                boolean foundEnd = false;
+                
+                while (st.hasMoreTokens()) {
+                    line++;
+                    String fStatement = st.nextToken().trim();
+                    if (fStatement.isEmpty() || fStatement.startsWith("-#")) continue;
+                    
+                    String[] fParts = fStatement.split("\\s+(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", 3);
+                    
+                    // Check if function ends
+                    if (fParts[0].equals("end") && fParts.length > 1 && fParts[1].equals(funcName)) {
+                        foundEnd = true;
+                        break;
+                    }
+                    
+                    funcBody.add(new Command(line, fParts[0], fParts));
+                }
+                
+                if (!foundEnd) {
+                    error("Unterminated function: " + funcName + " (missing 'end " + funcName + ";')", line);
+                }
+                
+                variables.put(funcName, new Function(params, funcBody));
+                continue; // Skip adding the function definition block to main execution
+            }
+
             commands.add(new Command(line, parts[0], parts));
         }
 
@@ -161,9 +209,99 @@ public class BlapInterpreter {
             case "brk" -> throw new Break();
             case "cnt" -> throw new Continue();
             case "loop-end" -> error("Unexpected loop-end encountered", cmd.lineNum());
+            case "ret" -> ret(parts);
             case "end" -> System.exit(0);
-            default -> error(parts[0] + " did not match any keyword!", cmd.lineNum());
+            default -> {
+                // If it's not a built-in command, check if it's a function call
+                if (variables.containsKey(cmd.keyword()) && variables.get(cmd.keyword()) instanceof Function func) {
+                    callFunction(func, cmd);
+                } else {
+                    error(parts[0] + " did not match any keyword!", cmd.lineNum());
+                }
+            }
         }
+    }
+
+    private static void callFunction(Function func, Command cmd) {
+        List<String> argList = new ArrayList<>();
+        if (cmd.parts().length > 1) {
+            String combinedArgs = cmd.parts()[1];
+            if (cmd.parts().length > 2) {
+                combinedArgs += " " + cmd.parts()[2];
+            }
+            String[] parsedArgs = combinedArgs.split("\\s+(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)");
+            argList.addAll(Arrays.asList(parsedArgs));
+        }
+
+        if (argList.size() != func.params().size()) {
+            error("Function " + cmd.keyword() + " expects " + func.params().size() + " arguments, but got " + argList.size(), cmd.lineNum());
+        }
+
+        HashMap<String, Object> backups = new HashMap<>();
+        List<String> toRemove = new ArrayList<>();
+
+        for (int i = 0; i < func.params().size(); i++) {
+            String paramName = func.params().get(i);
+            Object argValue = parseValue(argList.get(i));
+
+            if (variables.containsKey(paramName)) {
+                backups.put(paramName, variables.get(paramName));
+            } else {
+                toRemove.add(paramName);
+            }
+            variables.put(paramName, argValue);
+        }
+
+        Object returnValue = null;
+        try {
+            runCode(func.commands());
+        } catch (Return e) {
+            returnValue = e.value;
+        }
+
+        for (String key : toRemove) {
+            variables.remove(key);
+        }
+        for (Map.Entry<String, Object> entry : backups.entrySet()) {
+            variables.put(entry.getKey(), entry.getValue());
+        }
+        variables.put("RETF", returnValue);
+    }
+
+    private static void ret(String[] parts) {
+        if (parts.length < 2) {
+            throw new Return(null);
+        }
+        Object val = parseValue(parts[1]);
+        throw new Return(val);
+    }
+
+    private static Object parseValue(String val) {
+        if (val == null) return null;
+
+        // 1. Check if the value is a variable name in the variables list
+        if (variables.containsKey(val)) {
+            return variables.get(val);
+        }
+
+        // 2. Try to parse it as a number using parseNumber()
+        try {
+            return parseNumber(val);
+        } catch (NumberFormatException ignored) {}
+
+        // 3. Try to parse a boolean (converting to uppercase to handle TRUE/FALSE)
+        String upperVal = val.toUpperCase();
+        if (upperVal.equals("TRUE") || upperVal.equals("FALSE")) {
+            return Boolean.valueOf(upperVal.toLowerCase());
+        }
+
+        // 4. Otherwise, treat it as a string literal and strip quotation marks if present
+        if (val.startsWith("\"") && val.endsWith("\"")) {
+            return val.substring(1, val.length() - 1);
+        }
+
+        else error("Unknown Value", currentLine);
+        return null;
     }
 
     private static Number parseNumber(String val) throws NumberFormatException {
