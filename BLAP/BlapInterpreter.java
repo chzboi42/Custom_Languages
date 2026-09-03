@@ -120,6 +120,7 @@ public class BlapInterpreter {
                     } catch (Continue c) {} 
                       catch (Break b) {
                         isBreak = true;
+                        break;
                     } finally {
                         if (!isBreak) {
                             for (Command alwCmd : alwCommands) {
@@ -128,8 +129,6 @@ public class BlapInterpreter {
                             }
                         }
                     }
-                    
-                    if (isBreak) break;
                 }
 
                 i = endIdx + 1;
@@ -209,8 +208,19 @@ public class BlapInterpreter {
             error("cm requires two arguments to compare", currentLine);
         }
         String[] nums = parts[2].split("\\s+");
-        double n1 = extractNumber(parts[1]);
-        double n2 = extractNumber(nums[0]);
+        double n1, n2;
+            if ((parts[1].toUpperCase().equals("TRUE") || parts[1].toUpperCase().equals("FALSE")) && 
+                (parts[2].toUpperCase().equals("TRUE") || parts[2].toUpperCase().equals("FALSE"))) {
+                    n1 = parts[1].equals("TRUE") ? 1 : 0;
+                    n2 = parts[2].equals("TRUE") ? 1 : 0;
+            } else if ((variables.get(parts[1]).equals("true") || variables.get(parts[1]).equals("false")) && 
+                (variables.get(parts[2]).equals("true") || variables.get(parts[2]).equals("false"))) {
+                    n1 = variables.get(parts[1]).equals("true") ? 1 : 0;
+                    n2 = variables.get(parts[2]).equals("true") ? 1 : 0;
+            } else {
+                n1 = extractNumber(parts[1]);
+                n2 = extractNumber(nums[0]);
+            }
 
         lastComparison = Double.compare(n1, n2);
     }
@@ -253,7 +263,7 @@ public class BlapInterpreter {
             return;
         } catch (NumberFormatException ignored) {}
 
-        if (val.equalsIgnoreCase("TRUE") || val.equalsIgnoreCase("FALSE")) {
+        if (val.equals("TRUE") || val.equals("FALSE")) {
             variables.put(parts[1], Boolean.valueOf(val.toLowerCase()));
             return;
         } else if (val.startsWith("\"") && val.endsWith("\"")) {
@@ -346,7 +356,7 @@ public class BlapInterpreter {
         try {
             part1 = parseNumber(parts[1]);
         } catch (NumberFormatException l) {
-            if (parts[1].equalsIgnoreCase("TRUE") || parts[1].equalsIgnoreCase("FALSE")) {
+            if (parts[1].equals("TRUE") || parts[1].equals("FALSE")) {
                 part1 = Boolean.valueOf(parts[1].toLowerCase());
             } else if (parts[1].length() >= 2 && parts[1].startsWith("\"") && parts[1].endsWith("\"")) {
                 part1 = parts[1].substring(1, parts[1].length() - 1);
