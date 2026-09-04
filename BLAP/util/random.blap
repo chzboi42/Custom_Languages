@@ -2,37 +2,54 @@
     To use this file in your program, do "use <path>/random.blap;"
 ##
 
-db 03WTJ30WJ)j)3JT0JT0jw#t3T]g#pg#t{#jg#og(j#j#jg)j#)#jg0JG0WJFE 2423409;
+db J#(@GJ(#@G-g3g23g23g23g23g0239g832h9HG(#@G*HEB(#H@F(FH 123456789;
+db fjr9gj(J#G(*#J(hS(FAFL#FL#HFHOA(*S(OHFZO(HF(OSFHAS(FAFSFHASIFSIAFHXKNX98h(FHCZZ<XASKKF 987654321;
 
 db randInt:min:max;
-    mul 03WTJ30WJ)j)3JT0JT0jw#t3T]g#pg#t{#jg#og(j#j#jg)j#)#jg0JG0WJFE 1103515245;
-    add 03WTJ30WJ)j)3JT0JT0jw#t3T]g#pg#t{#jg#og(j#j#jg)j#)#jg0JG0WJFE 12345;
-    mod 03WTJ30WJ)j)3JT0JT0jw#t3T]g#pg#t{#jg#og(j#j#jg)j#)#jg0JG0WJFE 2147483648;
+    mul J#(@GJ(#@G-g3g23g23g23g23g0239g832h9HG(#@G*HEB(#H@F(FH 40014;
+    mod J#(@GJ(#@G-g3g23g23g23g23g0239g832h9HG(#@G*HEB(#H@F(FH 2147483563;
 
-    db range max;
-    sub range min;
-    add range 1;
+    mul fjr9gj(J#G(*#J(hS(FAFL#FL#HFHOA(*S(OHFZO(HF(OSFHAS(FAFSFHASIFSIAFHXKNX98h(FHCZZ<XASKKF 40692;
+    mod fjr9gj(J#G(*#J(hS(FAFL#FL#HFHOA(*S(OHFZO(HF(OSFHAS(FAFSFHASIFSIAFHXKNX98h(FHCZZ<XASKKF 2147483399;
 
-    db result 03WTJ30WJ)j)3JT0JT0jw#t3T]g#pg#t{#jg#og(j#j#jg)j#)#jg0JG0WJFE;
-    mod result range;
-    add result min;
+    db JOFJ#FJgwj)GGg#+G#G_#WG3jg0JG0ejgdGIGDSHOGDSGH\G#WJGA(EGj J#(@GJ(#@G-g3g23g23g23g23g0239g832h9HG(#@G*HEB(#H@F(FH;
+    sub JOFJ#FJgwj)GGg#+G#G_#WG3jg0JG0ejgdGIGDSHOGDSGH\G#WJGA(EGj fjr9gj(J#G(*#J(hS(FAFL#FL#HFHOA(*S(OHFZO(HF(OSFHAS(FAFSFHASIFSIAFHXKNX98h(FHCZZ<XASKKF;
+    mod JOFJ#FJgwj)GGg#+G#G_#WG3jg0JG0ejgdGIGDSHOGDSGH\G#WJGA(EGj 2147483562;
 
-    ret result;
+    cm JOFJ#FJgwj)GGg#+G#G_#WG3jg0JG0ejgdGIGDSHOGDSGH\G#WJGA(EGj 0;
+    j l add JOFJ#FJgwj)GGg#+G#G_#WG3jg0JG0ejgdGIGDSHOGDSGH\G#WJGA(EGj 2147483562;
+
+    db J)JFW)EGJEJGj max;
+    sub J)JFW)EGJEJGj min;
+
+    db k09)GJE)G#WJgpwg0jw3pgga[g JOFJ#FJgwj)GGg#+G#G_#WG3jg0JG0ejgdGIGDSHOGDSGH\G#WJGA(EGj;
+    mod k09)GJE)G#WJgpwg0jw3pgga[g J)JFW)EGJEJGj;
+    add k09)GJE)G#WJgpwg0jw3pgga[g min;
+
+    ret k09)GJE)G#WJgpwg0jw3pgga[g;
 end randInt;
 
 db randDec:min:max;
-    mul 03WTJ30WJ)j)3JT0JT0jw#t3T]g#pg#t{#jg#og(j#j#jg)j#)#jg0JG0WJFE 1103515245;
-    add 03WTJ30WJ)j)3JT0JT0jw#t3T]g#pg#t{#jg#og(j#j#jg)j#)#jg0JG0WJFE 12345;
-    mod 03WTJ30WJ)j)3JT0JT0jw#t3T]g#pg#t{#jg#og(j#j#jg)j#)#jg0JG0WJFE 2147483648;
+    mul J#(@GJ(#@G-g3g23g23g23g23g0239g832h9HG(#@G*HEB(#H@F(FH 40014;
+    mod J#(@GJ(#@G-g3g23g23g23g23g0239g832h9HG(#@G*HEB(#H@F(FH 2147483563;
 
-    db normalized 03WTJ30WJ)j)3JT0JT0jw#t3T]g#pg#t{#jg#og(j#j#jg)j#)#jg0JG0WJFE;
-    div normalized 2147483648;
+    mul fjr9gj(J#G(*#J(hS(FAFL#FL#HFHOA(*S(OHFZO(HF(OSFHAS(FAFSFHASIFSIAFHXKNX98h(FHCZZ<XASKKF 40692;
+    mod fjr9gj(J#G(*#J(hS(FAFL#FL#HFHOA(*S(OHFZO(HF(OSFHAS(FAFSFHASIFSIAFHXKNX98h(FHCZZ<XASKKF 2147483399;
 
-    db range max;
-    sub range min;
+    db JOFJ#FJgwj)GGg#+G#G_#WG3jg0JG0ejgdGIGDSHOGDSGH\G#WJGA(EGj J#(@GJ(#@G-g3g23g23g23g23g0239g832h9HG(#@G*HEB(#H@F(FH;
+    sub JOFJ#FJgwj)GGg#+G#G_#WG3jg0JG0ejgdGIGDSHOGDSGH\G#WJGA(EGj fjr9gj(J#G(*#J(hS(FAFL#FL#HFHOA(*S(OHFZO(HF(OSFHAS(FAFSFHASIFSIAFHXKNX98h(FHCZZ<XASKKF;
+    mod JOFJ#FJgwj)GGg#+G#G_#WG3jg0JG0ejgdGIGDSHOGDSGH\G#WJGA(EGj 2147483562;
 
-    mul normalized range;
-    add normalized min;
+    cm JOFJ#FJgwj)GGg#+G#G_#WG3jg0JG0ejgdGIGDSHOGDSGH\G#WJGA(EGj 0;
+    j l add JOFJ#FJgwj)GGg#+G#G_#WG3jg0JG0ejgdGIGDSHOGDSGH\G#WJGA(EGj 2147483562;
 
-    ret normalized;
+    db foewjG(#WJG3w0gjw03gj0 JOFJ#FJgwj)GGg#+G#G_#WG3jg0JG0ejgdGIGDSHOGDSGH\G#WJGA(EGj;
+    div foewjG(#WJG3w0gjw03gj0 2147483562;
+
+    db J)JFW)EGJEJGj max;
+    sub J)JFW)EGJEJGj min;
+    mul foewjG(#WJG3w0gjw03gj0 J)JFW)EGJEJGj;
+    add foewjG(#WJG3w0gjw03gj0 min;
+
+    ret foewjG(#WJG3w0gjw03gj0;
 end randDec;
