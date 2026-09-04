@@ -72,7 +72,6 @@ public class BlapInterpreter {
         variables.put("RETF", null);
         variables.put("NULL", null);
         variables.put("KRNL_GTLTST", null);
-        variables.put("RAND", 0);
 
         List<Command> commands = new ArrayList<>();
         StringTokenizer st = new StringTokenizer(code, ";");
