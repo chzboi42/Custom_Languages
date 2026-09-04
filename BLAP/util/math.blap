@@ -1,0 +1,29 @@
+## Math Utility File ##
+
+db abs:num;
+    cm num 0;
+        j l mul num -1;
+    ret num;
+end abs;
+
+db clamp:num:min:max;
+    cm num min;
+        j l db num min;
+    cm num max;
+        j g db num max;
+    ret num;
+end clamp;
+
+db factorial:n;
+    cm n 1;
+    j le ret 1;
+
+    db prev n;
+    sub prev 1;
+    
+    factorial prev;
+    db prevFact RETF;
+
+    mul prevFact n;
+    ret prevFact;
+end factorial;
