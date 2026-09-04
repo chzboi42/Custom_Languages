@@ -43,7 +43,7 @@ public class BlapInterpreter {
     }
 
     private static final record Command(int lineNum, String keyword, String[] parts) {}
-    private static final record Function(List<String> params, List<Command> commands) {}
+    private static final record Function(List<String> params, List<Command> commands, List<Command> alwaysRunCommands) {}
 
     public static void main(String[] args) {
         if (args.length != 1 || !args[0].endsWith(".blap")) {
@@ -94,6 +94,7 @@ public class BlapInterpreter {
                 }
                 
                 List<Command> funcBody = new ArrayList<>();
+                List<Command> alwaysRunCommands = new ArrayList<>();
                 boolean foundEnd = false;
                 
                 while (st.hasMoreTokens()) {
@@ -108,15 +109,17 @@ public class BlapInterpreter {
                         foundEnd = true;
                         break;
                     }
+
+                    if (fParts[0].equals("alw")) alwaysRunCommands.add(new Command(line, fParts[1], Arrays.copyOfRange(fParts, 1, fParts.length)));
                     
-                    funcBody.add(new Command(line, fParts[0], fParts));
+                    else funcBody.add(new Command(line, fParts[0], fParts));
                 }
                 
                 if (!foundEnd) {
                     error("Unterminated function: " + funcName + " (missing 'end " + funcName + ";')", line);
                 }
                 
-                variables.put(funcName, new Function(params, funcBody));
+                variables.put(funcName, new Function(params, funcBody, alwaysRunCommands));
                 continue; // Skip adding the function definition block to main execution
             }
 
@@ -289,6 +292,10 @@ public class BlapInterpreter {
             runCode(func.commands());
         } catch (Return e) {
             returnValue = e.value;
+        } finally {
+            for (Command c : func.alwaysRunCommands()) {
+                runCommand(c);
+            }
         }
 
         for (String key : toRemove) {

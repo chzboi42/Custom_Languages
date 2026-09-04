@@ -26,4 +26,7 @@ db factorial:n;
 
     mul prevFact n;
     ret prevFact;
+    
+    alw cl *prev;
+    alw cl *prevFact;
 end factorial;
