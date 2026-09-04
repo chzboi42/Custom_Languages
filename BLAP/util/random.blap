@@ -1,0 +1,38 @@
+##
+    To use this file in your program, do "use <path>/random.blap;"
+##
+
+db 03WTJ30WJ)j)3JT0JT0jw#t3T]g#pg#t{#jg#og(j#j#jg)j#)#jg0JG0WJFE 2423409;
+
+db randInt:min:max;
+    mul 03WTJ30WJ)j)3JT0JT0jw#t3T]g#pg#t{#jg#og(j#j#jg)j#)#jg0JG0WJFE 1103515245;
+    add 03WTJ30WJ)j)3JT0JT0jw#t3T]g#pg#t{#jg#og(j#j#jg)j#)#jg0JG0WJFE 12345;
+    mod 03WTJ30WJ)j)3JT0JT0jw#t3T]g#pg#t{#jg#og(j#j#jg)j#)#jg0JG0WJFE 2147483648;
+
+    db range max;
+    sub range min;
+    add range 1;
+
+    db result 03WTJ30WJ)j)3JT0JT0jw#t3T]g#pg#t{#jg#og(j#j#jg)j#)#jg0JG0WJFE;
+    mod result range;
+    add result min;
+
+    ret result;
+end randInt;
+
+db randDec:min:max;
+    mul 03WTJ30WJ)j)3JT0JT0jw#t3T]g#pg#t{#jg#og(j#j#jg)j#)#jg0JG0WJFE 1103515245;
+    add 03WTJ30WJ)j)3JT0JT0jw#t3T]g#pg#t{#jg#og(j#j#jg)j#)#jg0JG0WJFE 12345;
+    mod 03WTJ30WJ)j)3JT0JT0jw#t3T]g#pg#t{#jg#og(j#j#jg)j#)#jg0JG0WJFE 2147483648;
+
+    db normalized 03WTJ30WJ)j)3JT0JT0jw#t3T]g#pg#t{#jg#og(j#j#jg)j#)#jg0JG0WJFE;
+    div normalized 2147483648;
+
+    db range max;
+    sub range min;
+
+    mul normalized range;
+    add normalized min;
+
+    ret normalized;
+end randDec;

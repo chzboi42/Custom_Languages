@@ -212,6 +212,7 @@ public class BlapInterpreter {
         if (!kernel.isEmpty()) variables.put("KRNL_GTLTST", kernel.getLast());
         String[] parts = cmd.parts();
         switch (cmd.keyword()) {
+            case "use" -> main(new String[] {parts[1]});
             case "alw" -> error("alw can only be used in a loop!", cmd.lineNum());
             case "db" -> db(parts);
             case "add" -> add(parts);

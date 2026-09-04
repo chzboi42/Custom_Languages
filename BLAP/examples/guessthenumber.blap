@@ -1,0 +1,18 @@
+use ../util/random.blap;
+
+mv "Enter a number: " kernel;
+sy launch kernel;
+loop-begin i 0 10 1;
+    randInt 0 11;
+    sy retrieve kernel;
+    db guess KRNL_GTLTST;
+    mknum guess;
+    cm guess RETF;
+        cl kernel;
+        j e mv "You win!" kernel;
+        j ne mv "Try Again!" kernel;
+    mv " The number was " kernel;
+    mv RETF kernel;
+    mv NLN kernel;
+    sy launch kernel;
+loop-end;
