@@ -6,6 +6,8 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
+import java.util.Scanner;
 import java.util.StringTokenizer;
 import java.util.regex.Pattern;
 
@@ -14,6 +16,22 @@ public class BlapInterpreter {
     private static ArrayList<Object> kernel = new ArrayList<>();
     private static int currentLine = 0;
     private static int lastComparison = 0;
+
+    private static enum Boolean {
+        TRUE,
+        FALSE;
+        static Boolean parse(String val) throws Exception {
+            switch (val) {
+                case "TRUE" -> {
+                    return Boolean.TRUE;
+                }
+                case "FALSE" -> {
+                    return Boolean.FALSE;
+                }
+                default -> throw new Exception("Cannot parse!");
+            }
+        }
+    }
 
     private static class Break extends RuntimeException {}
     private static class Continue extends RuntimeException {}
@@ -36,7 +54,7 @@ public class BlapInterpreter {
         String filePath = args[0];
         String code;
         try {
-            code = Files.readString(Path.of(filePath));
+            code = Files.readString(Path.of(filePath).toAbsolutePath());
         } catch (IOException e) {
             error("Error: Could not read file " + filePath, 0);
             return;
@@ -53,6 +71,9 @@ public class BlapInterpreter {
     private static void organizeCode(String code) {
         variables.put("NLN", "\n");
         variables.put("RETF", null);
+        variables.put("NULL", null);
+        variables.put("KRNL_GTLTST", null);
+        variables.put("RAND", 0);
 
         List<Command> commands = new ArrayList<>();
         StringTokenizer st = new StringTokenizer(code, ";");
@@ -188,6 +209,7 @@ public class BlapInterpreter {
     }
 
     private static void runCommand(Command cmd) {
+        if (!kernel.isEmpty()) variables.put("KRNL_GTLTST", kernel.getLast());
         String[] parts = cmd.parts();
         switch (cmd.keyword()) {
             case "alw" -> error("alw can only be used in a loop!", cmd.lineNum());
@@ -206,6 +228,17 @@ public class BlapInterpreter {
             case "cl" -> cl(parts);
             case "cm" -> cm(parts);
             case "j" -> j(parts);
+            case "mknum" -> {
+                try {
+                    variables.put(parts[1], Long.parseLong(String.valueOf(variables.get(parts[1]))));
+                } catch (NumberFormatException e) {
+                    try {
+                        variables.put(parts[1], Double.parseDouble(String.valueOf(variables.get(parts[1]))));
+                    } catch (NumberFormatException f) {
+                        error("Value is inherently not a number!", currentLine);
+                    }
+                }
+            }
             case "brk" -> throw new Break();
             case "cnt" -> throw new Continue();
             case "loop-end" -> error("Unexpected loop-end encountered", cmd.lineNum());
@@ -279,23 +312,18 @@ public class BlapInterpreter {
     private static Object parseValue(String val) {
         if (val == null) return null;
 
-        // 1. Check if the value is a variable name in the variables list
         if (variables.containsKey(val)) {
             return variables.get(val);
         }
 
-        // 2. Try to parse it as a number using parseNumber()
         try {
             return parseNumber(val);
         } catch (NumberFormatException ignored) {}
 
-        // 3. Try to parse a boolean (converting to uppercase to handle TRUE/FALSE)
-        String upperVal = val.toUpperCase();
-        if (upperVal.equals("TRUE") || upperVal.equals("FALSE")) {
-            return Boolean.valueOf(upperVal.toLowerCase());
-        }
+        try {
+            return Boolean.parse(val);
+        } catch (Exception ignored) {}
 
-        // 4. Otherwise, treat it as a string literal and strip quotation marks if present
         if (val.startsWith("\"") && val.endsWith("\"")) {
             return val.substring(1, val.length() - 1);
         }
@@ -322,7 +350,7 @@ public class BlapInterpreter {
             if (obj instanceof Number num) {
                 return num.doubleValue();
             }
-            error("Variable " + token + " is not a number!", currentLine);
+            error("Variable " + token + " is not a number!" + token.getClass().getSimpleName(), currentLine);
         }
         
         error("Value " + token + " is not a valid number!", currentLine);
@@ -345,21 +373,25 @@ public class BlapInterpreter {
         if (parts.length < 3) {
             error("cm requires two arguments to compare", currentLine);
         }
-        String[] nums = parts[2].split("\\s+");
         double n1, n2;
-            if ((parts[1].toUpperCase().equals("TRUE") || parts[1].toUpperCase().equals("FALSE")) && 
-                (parts[2].toUpperCase().equals("TRUE") || parts[2].toUpperCase().equals("FALSE"))) {
-                    n1 = parts[1].equals("TRUE") ? 1 : 0;
-                    n2 = parts[2].equals("TRUE") ? 1 : 0;
-            } else if ((variables.get(parts[1]).equals("true") || variables.get(parts[1]).equals("false")) && 
-                (variables.get(parts[2]).equals("true") || variables.get(parts[2]).equals("false"))) {
-                    n1 = variables.get(parts[1]).equals("true") ? 1 : 0;
-                    n2 = variables.get(parts[2]).equals("true") ? 1 : 0;
-            } else {
-                n1 = extractNumber(parts[1]);
-                n2 = extractNumber(nums[0]);
+            try {
+                    n1 = Boolean.parse(parts[1]).equals(Boolean.TRUE) ? 1 : 0;
+            } catch (Exception e) {
+                if (variables.get(parts[1]) instanceof Boolean) {
+                    n1 = variables.get(parts[1]).equals(Boolean.TRUE) ? 1 : 0;
+                } else {
+                    n1 = extractNumber(parts[1]);
+                }
             }
-
+            try {
+                n2 = Boolean.parse(parts[2]).equals(Boolean.TRUE) ? 1 : 0;
+            } catch (Exception e) {
+                if (variables.get(parts[2]) instanceof Boolean) {
+                    n2 = variables.get(parts[2]).equals(Boolean.TRUE) ? 1 : 0;
+                } else {
+                    n2 = extractNumber(parts[2]);
+                }
+            }
         lastComparison = Double.compare(n1, n2);
     }
 
@@ -395,23 +427,25 @@ public class BlapInterpreter {
     }
 
     private static void db(String[] parts) {
-        String val = parts[2];
+        String val = parts[2].strip();
         try {
             variables.put(parts[1], parseNumber(val));
             return;
         } catch (NumberFormatException ignored) {}
 
-        if (val.equals("TRUE") || val.equals("FALSE")) {
-            variables.put(parts[1], Boolean.valueOf(val.toLowerCase()));
+        try {
+            variables.put(parts[1], Boolean.parse(val));
             return;
-        } else if (val.startsWith("\"") && val.endsWith("\"")) {
+        } catch (Exception ignored) {} 
+
+        if (val.startsWith("\"") && val.endsWith("\"")) {
             variables.put(parts[1], val.substring(1, val.length() - 1));
             return;
         } else if (variables.containsKey(val)) {
             variables.put(parts[1], variables.get(val));
             return;
         }
-        error("Invalid value type: " + val, currentLine);
+        error("Invalid value type: [" + val + "]", currentLine);
     }
 
     private static void add(String[] parts) {
@@ -477,16 +511,20 @@ public class BlapInterpreter {
     }
 
     private static void sy(String[] parts) {
-        if (!parts[1].equals("launch") || !parts[2].equals("kernel")) {
-            error("sy can only launch kernel right now!", currentLine);
-        }
-        for (Object e : kernel) {
-            if ("\\n".equals(e)) {
-                System.out.print("\n");
-            } else {
-                System.out.print(e);
+        if (parts[2].equals("kernel")) {
+            if (parts[1].equals("launch")) {
+                for (Object e : kernel) {
+                    if ("\\n".equals(e)) {
+                        System.out.print("\n");
+                    } else {
+                        System.out.print(e);
+                    }
+                }
+            } else if (parts[1].equals("retrieve")) {
+                kernel.add(new Scanner(System.in).nextLine());
             }
         }
+        
     }
 
     private static void mv(String[] parts) {
@@ -495,7 +533,7 @@ public class BlapInterpreter {
             part1 = parseNumber(parts[1]);
         } catch (NumberFormatException l) {
             if (parts[1].equals("TRUE") || parts[1].equals("FALSE")) {
-                part1 = Boolean.valueOf(parts[1].toLowerCase());
+                part1 = parts[1].equals("TRUE") ? Boolean.TRUE : Boolean.FALSE;
             } else if (parts[1].length() >= 2 && parts[1].startsWith("\"") && parts[1].endsWith("\"")) {
                 part1 = parts[1].substring(1, parts[1].length() - 1);
             } else if (variables.containsKey(parts[1])) {
