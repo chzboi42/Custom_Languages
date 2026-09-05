@@ -2,18 +2,18 @@
     To use this file in your program, do "use <path>/random.blap;"
 ##
 
-db J#(@GJ(#@G-g3g23g23g23g23g0239g832h9HG(#@G*HEB(#H@F(FH 123456789;
-db fjr9gj(J#G(*#J(hS(FAFL#FL#HFHOA(*S(OHFZO(HF(OSFHAS(FAFSFHASIFSIAFHXKNX98h(FHCZZ<XASKKF 987654321;
+db seed1 123456789;
+db seed2 987654321;
 
 db randInt:min:max;
-    mul J#(@GJ(#@G-g3g23g23g23g23g0239g832h9HG(#@G*HEB(#H@F(FH 40014;
-    mod J#(@GJ(#@G-g3g23g23g23g23g0239g832h9HG(#@G*HEB(#H@F(FH 2147483563;
+    mul seed1 40014;
+    mod seed1 2147483563;
 
-    mul fjr9gj(J#G(*#J(hS(FAFL#FL#HFHOA(*S(OHFZO(HF(OSFHAS(FAFSFHASIFSIAFHXKNX98h(FHCZZ<XASKKF 40692;
-    mod fjr9gj(J#G(*#J(hS(FAFL#FL#HFHOA(*S(OHFZO(HF(OSFHAS(FAFSFHASIFSIAFHXKNX98h(FHCZZ<XASKKF 2147483399;
+    mul seed2 40692;
+    mod seed2 2147483399;
 
-    db combined J#(@GJ(#@G-g3g23g23g23g23g0239g832h9HG(#@G*HEB(#H@F(FH;
-    sub combined fjr9gj(J#G(*#J(hS(FAFL#FL#HFHOA(*S(OHFZO(HF(OSFHAS(FAFSFHASIFSIAFHXKNX98h(FHCZZ<XASKKF;
+    db combined seed1;
+    sub combined seed2;
     mod combined 2147483562;
 
     cm combined 0;
@@ -34,14 +34,14 @@ db randInt:min:max;
 end randInt;
 
 db randDec:min:max;
-    mul J#(@GJ(#@G-g3g23g23g23g23g0239g832h9HG(#@G*HEB(#H@F(FH 40014;
-    mod J#(@GJ(#@G-g3g23g23g23g23g0239g832h9HG(#@G*HEB(#H@F(FH 2147483563;
+    mul seed1 40014;
+    mod seed1 2147483563;
 
-    mul fjr9gj(J#G(*#J(hS(FAFL#FL#HFHOA(*S(OHFZO(HF(OSFHAS(FAFSFHASIFSIAFHXKNX98h(FHCZZ<XASKKF 40692;
-    mod fjr9gj(J#G(*#J(hS(FAFL#FL#HFHOA(*S(OHFZO(HF(OSFHAS(FAFSFHASIFSIAFHXKNX98h(FHCZZ<XASKKF 2147483399;
+    mul seed2 40692;
+    mod seed2 2147483399;
 
-    db combined J#(@GJ(#@G-g3g23g23g23g23g0239g832h9HG(#@G*HEB(#H@F(FH;
-    sub combined fjr9gj(J#G(*#J(hS(FAFL#FL#HFHOA(*S(OHFZO(HF(OSFHAS(FAFSFHASIFSIAFHXKNX98h(FHCZZ<XASKKF;
+    db combined seed1;
+    sub combined seed2;
     mod combined 2147483562;
 
     cm combined 0;

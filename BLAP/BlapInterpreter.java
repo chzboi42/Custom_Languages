@@ -11,12 +11,13 @@ import java.util.StringTokenizer;
 import java.util.regex.Pattern;
 
 public class BlapInterpreter {
-    private static final HashMap<String, Object> variables = new HashMap<>();
-    private static ArrayList<Object> kernel = new ArrayList<>();
-    private static int currentLine = 0;
-    private static int lastComparison = 0;
+     final HashMap<String, Object> variables = new HashMap<>();
+     ArrayList<Object> kernel = new ArrayList<>();
+     int currentLine = 0;
+     int lastComparison = 0;
+     private BlapInterpreter caller;
 
-    private static enum Boolean {
+     enum Boolean {
         TRUE,
         FALSE;
         static Boolean parse(String val) throws Exception {
@@ -32,25 +33,30 @@ public class BlapInterpreter {
         }
     }
 
-    private static class Break extends RuntimeException {}
-    private static class Continue extends RuntimeException {}
+     class Break extends RuntimeException {}
+     class Continue extends RuntimeException {}
 
-    private static class Return extends RuntimeException {
+     class Return extends RuntimeException {
         final Object value;
         Return(Object value) {
             this.value = value;
         }
     }
 
-    private static final record Command(int lineNum, String keyword, String[] parts) {}
-    private static final record Function(List<String> params, List<Command> commands, List<Command> alwaysRunCommands) {}
+     final record Command(int lineNum, String keyword, String[] parts) {}
+     final record Function(BlapInterpreter owner, List<String> params, List<Command> commands, List<Command> alwaysRunCommands) {}
 
-    public static void main(String[] args) {
-        if (args.length != 1 || !args[0].endsWith(".blap")) {
+    void main(String[] args) {
+        if (args.length != 1) error("Usage: java BlapInterpreter <BLAP file>", 0);
+        start(args[0], this);
+    }
+
+    void start(String filePath, BlapInterpreter caller) {
+        this.caller = caller;
+        if (filePath.isEmpty() || !filePath.endsWith(".blap")) {
             error("Usage: java BlapInterpreter <BLAP file>", 0);
             return;
         }
-        String filePath = args[0];
         String code;
         try {
             code = Files.readString(Path.of(filePath).toAbsolutePath());
@@ -67,7 +73,8 @@ public class BlapInterpreter {
         organizeCode(code);
     }
 
-    private static void organizeCode(String code) {
+
+     void organizeCode(String code) {
         variables.put("NLN", "\n");
         variables.put("RETF", null);
         variables.put("NULL", null);
@@ -119,7 +126,7 @@ public class BlapInterpreter {
                     error("Unterminated function: " + funcName + " (missing 'end " + funcName + ";')", line);
                 }
                 
-                variables.put(funcName, new Function(params, funcBody, alwaysRunCommands));
+                caller.variables.put(funcName, new Function(this, params, funcBody, alwaysRunCommands));
                 continue; // Skip adding the function definition block to main execution
             }
 
@@ -129,7 +136,7 @@ public class BlapInterpreter {
         runCode(commands);
     }
 
-    private static void runCode(List<Command> commands) {
+     void runCode(List<Command> commands) {
         int i = 0;
         while (i < commands.size()) {
             Command cmd = commands.get(i);
@@ -209,12 +216,12 @@ public class BlapInterpreter {
         }
     }
 
-    private static void runCommand(Command cmd) {
+     void runCommand(Command cmd) {
         if (!kernel.isEmpty()) variables.put("KRNL_GTLTST", kernel.getLast());
         String[] parts = cmd.parts();
         switch (cmd.keyword()) {
-            case "use" -> main(new String[] {parts[1]});
-            case "alw" -> error("alw can only be used in a loop!", cmd.lineNum());
+            case "use" -> new BlapInterpreter().start(parts[1], this);
+            case "alw" -> error("alw can only be used in a loop or function!", cmd.lineNum());
             case "db" -> db(parts);
             case "add" -> add(parts);
             case "sub" -> sub(parts);
@@ -249,7 +256,7 @@ public class BlapInterpreter {
             default -> {
                 // If it's not a built-in command, check if it's a function call
                 if (variables.containsKey(cmd.keyword()) && variables.get(cmd.keyword()) instanceof Function func) {
-                    callFunction(func, cmd);
+                    func.owner().callFunction(func, cmd);
                 } else {
                     error(parts[0] + " did not match any keyword!", cmd.lineNum());
                 }
@@ -257,7 +264,7 @@ public class BlapInterpreter {
         }
     }
 
-    private static void callFunction(Function func, Command cmd) {
+     void callFunction(Function func, Command cmd) {
         List<String> argList = new ArrayList<>();
         if (cmd.parts().length > 1) {
             String combinedArgs = cmd.parts()[1];
@@ -304,10 +311,10 @@ public class BlapInterpreter {
         for (Map.Entry<String, Object> entry : backups.entrySet()) {
             variables.put(entry.getKey(), entry.getValue());
         }
-        variables.put("RETF", returnValue);
+        caller.variables.put("RETF", returnValue);
     }
 
-    private static void ret(String[] parts) {
+     void ret(String[] parts) {
         if (parts.length < 2) {
             throw new Return(null);
         }
@@ -315,7 +322,7 @@ public class BlapInterpreter {
         throw new Return(val);
     }
 
-    private static Object parseValue(String val) {
+     Object parseValue(String val) {
         if (val == null) return null;
 
         if (variables.containsKey(val)) {
@@ -338,7 +345,7 @@ public class BlapInterpreter {
         return null;
     }
 
-    private static Number parseNumber(String val) throws NumberFormatException {
+     Number parseNumber(String val) throws NumberFormatException {
         try {
             return Long.parseLong(val);
         } catch (NumberFormatException e) {
@@ -346,7 +353,7 @@ public class BlapInterpreter {
         }
     }
 
-    private static double extractNumber(String token) {
+     double extractNumber(String token) {
         try {
             return parseNumber(token).doubleValue();
         } catch (NumberFormatException ignored) {}
@@ -363,19 +370,19 @@ public class BlapInterpreter {
         return 0;
     }
 
-    private static Number formatNumber(double result) {
+     Number formatNumber(double result) {
         if (result == (long) result) return (long) result;
         return result;
     }
 
-    private static void ascii(String[] parts) {
+     void ascii(String[] parts) {
         Object val = variables.get(parts[1]);
         if (val instanceof String v && v.length() == 1) variables.put(parts[1], (long) v.charAt(0));
         else if (val instanceof Long) variables.put(parts[1], String.valueOf((char) ((Number) val).longValue()));
         else error("Value " + val + " is not a valid Character or Integer!", currentLine);
     }
 
-    private static void cm(String[] parts) {
+     void cm(String[] parts) {
         if (parts.length < 3) {
             error("cm requires two arguments to compare", currentLine);
         }
@@ -401,7 +408,7 @@ public class BlapInterpreter {
         lastComparison = Double.compare(n1, n2);
     }
 
-    private static void j(String[] parts) {
+     void j(String[] parts) {
         if (parts.length < 3) {
             error("j requires a comparator and a command to execute", currentLine);
         }
@@ -432,7 +439,7 @@ public class BlapInterpreter {
         }
     }
 
-    private static void db(String[] parts) {
+     void db(String[] parts) {
         String val = parts[2].strip();
         try {
             variables.put(parts[1], parseNumber(val));
@@ -454,7 +461,7 @@ public class BlapInterpreter {
         error("Invalid value type: [" + val + "]", currentLine);
     }
 
-    private static void add(String[] parts) {
+     void add(String[] parts) {
         Object current = variables.get(parts[1]);
         if (current instanceof String val) {
             String addend = variables.containsKey(parts[2]) ? String.valueOf(variables.get(parts[2])) : parts[2].replaceAll("^\"|\"$", "");
@@ -466,13 +473,13 @@ public class BlapInterpreter {
         }
     }
 
-    private static void sub(String[] parts) {
+     void sub(String[] parts) {
         double subbed = extractNumber(parts[1]);
         double toSub = extractNumber(parts[2]);
         variables.put(parts[1], formatNumber(subbed - toSub));
     }
 
-    private static void mul(String[] parts) {
+     void mul(String[] parts) {
         Object current = variables.get(parts[1]);
         if (current instanceof String value) {
             StringBuilder totalString = new StringBuilder();
@@ -488,35 +495,35 @@ public class BlapInterpreter {
         }
     }
 
-    private static void div(String[] parts) {
+     void div(String[] parts) {
         double dividend = extractNumber(parts[1]);
         double divisor = extractNumber(parts[2]);
         variables.put(parts[1], formatNumber(dividend / divisor));
     }
 
-    private static void pow(String[] parts) {
+     void pow(String[] parts) {
         double base = extractNumber(parts[1]);
         double power = extractNumber(parts[2]);
         variables.put(parts[1], formatNumber(Math.pow(base, power)));
     }
 
-    private static void mod(String[] parts) {
+     void mod(String[] parts) {
         double val = extractNumber(parts[1]);
         double modBy = extractNumber(parts[2]);
         variables.put(parts[1], formatNumber(val % modBy));
     }
 
-    private static void floor(String[] parts) {
+     void floor(String[] parts) {
         double val = extractNumber(parts[1]);
         variables.put(parts[1], formatNumber(Math.floor(val)));
     }
 
-    private static void ceil(String[] parts) {
+     void ceil(String[] parts) {
         double val = extractNumber(parts[1]);
         variables.put(parts[1], formatNumber(Math.ceil(val)));
     }
 
-    private static void sy(String[] parts) {
+     void sy(String[] parts) {
         if (parts[2].equals("kernel")) {
             if (parts[1].equals("launch")) {
                 for (Object e : kernel) {
@@ -533,7 +540,7 @@ public class BlapInterpreter {
         
     }
 
-    private static void mv(String[] parts) {
+     void mv(String[] parts) {
         Object part1;
         try {
             part1 = parseNumber(parts[1]);
@@ -559,7 +566,7 @@ public class BlapInterpreter {
         }
     }
 
-    private static void cl(String[] parts) {
+     void cl(String[] parts) {
         if (parts[1].equals("kernel")) {
             kernel.clear();
         } else if (parts[1].equals("*kernel")) {
@@ -577,7 +584,7 @@ public class BlapInterpreter {
         }
     }
 
-    private static void error(String error, int lineNum) {
+     void error(String error, int lineNum) {
         System.err.println("BLAP Program Exception on Line " + lineNum + ": " + error);
         System.exit(1);
     }
