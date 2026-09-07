@@ -337,46 +337,102 @@ public class BlapInterpreter {
         }
         else {
             String className = func.commands().get(0).keyword();
-            String methodName = func.commands().get(1).keyword();
+            String[] methodChain = func.commands().get(1).keyword().split("\\.");
 
             try {
-                Class<?> clazz = Class.forName(className);
-
-                java.lang.reflect.Method targetMethod = null;
-                for (java.lang.reflect.Method m : clazz.getDeclaredMethods()) {
-                    if (m.getName().equals(methodName)) {
-                        targetMethod = m;
-                        break;
-                    }
-                }
-                if (targetMethod == null) {
-                    error("Native method " + methodName + " not found in " + className, currentLine);
-                }
-
                 List<Object> args = new ArrayList<>();
                 if (cmd.parts().length > 1) {
-                    String[] rawArgs = cmd.parts()[1].split("\\s+");
+                    String result = cmd.parts()[1];
+                    if (cmd.parts().length > 2) {
+                        result += " " + cmd.parts()[2];
+                    }
+                    String[] rawArgs = result.split("\\s+");
                     for (String arg : rawArgs) {
                         args.add(parseValue(arg));
                     }
                 }
 
-                Class<?>[] paramTypes = targetMethod.getParameterTypes();
-                Object[] convertedArgs = new Object[paramTypes.length];
+                Class<?> currentClass = Class.forName(className);
+                Object currentObj = null;
 
-                for (int i = 0; i < paramTypes.length; i++) {
-                    Object raw = args.get(i);
-                    if (paramTypes[i] == double.class || paramTypes[i] == Double.class) {
-                        convertedArgs[i] = ((Number) raw).doubleValue();
-                    } else if (paramTypes[i] == long.class || paramTypes[i] == Long.class) {
-                        convertedArgs[i] = ((Number) raw).longValue();
+                for (int i = 0; i < methodChain.length; i++) {
+                    String methodName = methodChain[i];
+                    boolean isLastMethod = (i == methodChain.length - 1);
+
+                    java.lang.reflect.Method targetMethod = null;
+                    Object[] invokeArgs = null;
+
+                    if (isLastMethod && !args.isEmpty()) {
+                        for (java.lang.reflect.Method method : currentClass.getMethods()) {
+                            if (method.getName().equals(methodName) && method.getParameterCount() == args.size()) {
+                                Class<?>[] pTypes = method.getParameterTypes();
+                                boolean match = true;
+                                Object[] matchedArgs = new Object[args.size()];
+
+                                for (int j = 0; j < args.size(); j++) {
+                                    Object arg = args.get(j);
+                                    Class<?> pType = pTypes[j];
+
+                                    switch (arg) {
+                                        case Double d -> {
+                                            if (pType == double.class || pType == Double.class) matchedArgs[j] = d;
+                                            else if (pType == float.class || pType == Float.class) matchedArgs[j] = d.floatValue();
+                                            else if (pType.isAssignableFrom(Double.class)) matchedArgs[j] = d;
+                                            else { match = false; break; }
+                                        }
+                                        case Long l -> {
+                                            if (pType == long.class || pType == Long.class) matchedArgs[j] = l;
+                                            else if (pType == int.class || pType == Integer.class) matchedArgs[j] = l.intValue();
+                                            else if (pType == double.class || pType == Double.class) matchedArgs[j] = l.doubleValue();
+                                            else if (pType == float.class || pType == Float.class) matchedArgs[j] = l.floatValue();
+                                            else if (pType.isAssignableFrom(Long.class)) matchedArgs[j] = l;
+                                            else { match = false; break; }
+                                        }
+                                        case Boolean b -> {
+                                            if (pType == boolean.class || pType == java.lang.Boolean.class) matchedArgs[j] = (b == Boolean.TRUE);
+                                            else if (pType.isAssignableFrom(java.lang.Boolean.class)) matchedArgs[j] = (b == Boolean.TRUE);
+                                            else { match = false; break; }
+                                        }
+                                        default -> {
+                                            if (pType.isAssignableFrom(arg.getClass())) matchedArgs[j] = arg;
+                                            else { match = false; break; }
+                                        }
+                                    }
+                                }
+
+                                if (match) {
+                                    targetMethod = method;
+                                    invokeArgs = matchedArgs;
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        if (targetMethod == null) {
+                            throw new NoSuchMethodException("No compatible method " + methodName + " found for the provided arguments.");
+                        }
                     } else {
-                        convertedArgs[i] = raw;
+                        targetMethod = currentClass.getMethod(methodName);
+                        invokeArgs = new Object[0];
+                    }
+
+                    targetMethod.setAccessible(true);
+
+                    if (currentObj == null) {
+                        if (java.lang.reflect.Modifier.isStatic(targetMethod.getModifiers())) {
+                            currentObj = targetMethod.invoke(null, invokeArgs);
+                        } else {
+                            Object instance = currentClass.getDeclaredConstructor().newInstance();
+                            currentObj = targetMethod.invoke(instance, invokeArgs);
+                        }
+                    } else {
+                        currentObj = targetMethod.invoke(currentObj, invokeArgs);
+                    }
+                    if (currentObj != null && !isLastMethod) {
+                        currentClass = currentObj.getClass();
                     }
                 }
-
-                Object result = targetMethod.invoke(clazz.getDeclaredConstructor().newInstance(), convertedArgs);
-                caller.variables.put("RETF", result);
+                caller.variables.put("RETF", currentObj);
 
             } catch (ClassNotFoundException | IllegalAccessException | IllegalArgumentException | InstantiationException | NoSuchMethodException | InvocationTargetException e) {
                 error("Failed to load native method: " + e.getMessage(), currentLine);
