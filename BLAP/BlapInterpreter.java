@@ -1,4 +1,5 @@
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -44,7 +45,7 @@ public class BlapInterpreter {
     }
 
      final record Command(int lineNum, String keyword, String[] parts) {}
-     final record Function(BlapInterpreter owner, List<String> params, List<Command> commands, List<Command> alwaysRunCommands) {}
+     final record Function(BlapInterpreter owner, boolean isBlap, List<String> params, List<Command> commands, List<Command> alwaysRunCommands) {}
 
     void main(String[] args) {
         if (args.length != 1) error("Usage: java BlapInterpreter <BLAP file>", 0);
@@ -91,12 +92,12 @@ public class BlapInterpreter {
 
             String[] parts = statement.split("\\s+(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", 3);
 
-            if (parts[0].equals("db") && parts.length > 1 && parts[1].contains(":")) {
+            if (parts[0].equals("fn") && parts.length > 1) {
                 String[] funcSig = parts[1].split(":");
                 String funcName = funcSig[0];
                 
                 List<String> params = new ArrayList<>();
-                for (int p = 1; p < funcSig.length; p++) {
+                if(parts[1].contains(":")) for (int p = 1; p < funcSig.length; p++) {
                     params.add(funcSig[p]);
                 }
                 
@@ -110,8 +111,7 @@ public class BlapInterpreter {
                     if (fStatement.isEmpty() || fStatement.startsWith("-#")) continue;
                     
                     String[] fParts = fStatement.split("\\s+(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", 3);
-                    
-                    // Check if function ends
+
                     if (fParts[0].equals("end") && fParts.length > 1 && fParts[1].equals(funcName)) {
                         foundEnd = true;
                         break;
@@ -126,8 +126,29 @@ public class BlapInterpreter {
                     error("Unterminated function: " + funcName + " (missing 'end " + funcName + ";')", line);
                 }
                 
-                caller.variables.put(funcName, new Function(this, params, funcBody, alwaysRunCommands));
-                continue; // Skip adding the function definition block to main execution
+                caller.variables.put(funcName, new Function(this, true, params, funcBody, alwaysRunCommands));
+                continue;
+            }
+
+            else if (parts[0].equals("javafn") && parts.length > 1) {
+                parts = statement.split("\\s+(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", 4);
+                String[] funcSig = parts[1].split(":");
+                List<String> params = new ArrayList<>();
+                
+                if(parts[1].contains(":")) for (int p = 1; p < funcSig.length; p++) {
+                    params.add(funcSig[p]);
+                }
+                caller.variables.put(
+                    funcSig[0],
+                    new Function(
+                        this,
+                        false,
+                        params,
+                        List.of(new Command(line, parts[2], null), new Command(line, parts[3], null)),
+                        null
+                    )
+                );
+                continue;
             }
 
             commands.add(new Command(line, parts[0], parts));
@@ -265,53 +286,102 @@ public class BlapInterpreter {
     }
 
      void callFunction(Function func, Command cmd) {
-        List<String> argList = new ArrayList<>();
-        if (cmd.parts().length > 1) {
-            String combinedArgs = cmd.parts()[1];
-            if (cmd.parts().length > 2) {
-                combinedArgs += " " + cmd.parts()[2];
+        if (func.isBlap()) {
+            List<String> argList = new ArrayList<>();
+            if (cmd.parts().length > 1) {
+                String combinedArgs = cmd.parts()[1];
+                if (cmd.parts().length > 2) {
+                    combinedArgs += " " + cmd.parts()[2];
+                }
+                String[] parsedArgs = combinedArgs.split("\\s+(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)");
+                argList.addAll(Arrays.asList(parsedArgs));
             }
-            String[] parsedArgs = combinedArgs.split("\\s+(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)");
-            argList.addAll(Arrays.asList(parsedArgs));
-        }
 
-        if (argList.size() != func.params().size()) {
-            error("Function " + cmd.keyword() + " expects " + func.params().size() + " arguments, but got " + argList.size(), cmd.lineNum());
-        }
-
-        HashMap<String, Object> backups = new HashMap<>();
-        List<String> toRemove = new ArrayList<>();
-
-        for (int i = 0; i < func.params().size(); i++) {
-            String paramName = func.params().get(i);
-            Object argValue = parseValue(argList.get(i));
-
-            if (variables.containsKey(paramName)) {
-                backups.put(paramName, variables.get(paramName));
-            } else {
-                toRemove.add(paramName);
+            if (argList.size() != func.params().size()) {
+                error("Function " + cmd.keyword() + " expects " + func.params().size() + " arguments, but got " + argList.size(), cmd.lineNum());
             }
-            variables.put(paramName, argValue);
-        }
 
-        Object returnValue = null;
-        try {
-            runCode(func.commands());
-        } catch (Return e) {
-            returnValue = e.value;
-        } finally {
-            for (Command c : func.alwaysRunCommands()) {
-                runCommand(c);
+            HashMap<String, Object> backups = new HashMap<>();
+            List<String> toRemove = new ArrayList<>();
+
+            for (int i = 0; i < func.params().size(); i++) {
+                String paramName = func.params().get(i);
+                Object argValue = parseValue(argList.get(i));
+
+                if (variables.containsKey(paramName)) {
+                    backups.put(paramName, variables.get(paramName));
+                } else {
+                    toRemove.add(paramName);
+                }
+                variables.put(paramName, argValue);
+            }
+
+            Object returnValue = null;
+            try {
+                runCode(func.commands());
+            } catch (Return e) {
+                returnValue = e.value;
+            } finally {
+                for (Command c : func.alwaysRunCommands()) {
+                    runCommand(c);
+                }
+            }
+
+            for (String key : toRemove) {
+                variables.remove(key);
+            }
+            for (Map.Entry<String, Object> entry : backups.entrySet()) {
+                variables.put(entry.getKey(), entry.getValue());
+            }
+            caller.variables.put("RETF", returnValue);
+        }
+        else {
+            String className = func.commands().get(0).keyword();
+            String methodName = func.commands().get(1).keyword();
+
+            try {
+                Class<?> clazz = Class.forName(className);
+
+                java.lang.reflect.Method targetMethod = null;
+                for (java.lang.reflect.Method m : clazz.getDeclaredMethods()) {
+                    if (m.getName().equals(methodName)) {
+                        targetMethod = m;
+                        break;
+                    }
+                }
+                if (targetMethod == null) {
+                    error("Native method " + methodName + " not found in " + className, currentLine);
+                }
+
+                List<Object> args = new ArrayList<>();
+                if (cmd.parts().length > 1) {
+                    String[] rawArgs = cmd.parts()[1].split("\\s+");
+                    for (String arg : rawArgs) {
+                        args.add(parseValue(arg));
+                    }
+                }
+
+                Class<?>[] paramTypes = targetMethod.getParameterTypes();
+                Object[] convertedArgs = new Object[paramTypes.length];
+
+                for (int i = 0; i < paramTypes.length; i++) {
+                    Object raw = args.get(i);
+                    if (paramTypes[i] == double.class || paramTypes[i] == Double.class) {
+                        convertedArgs[i] = ((Number) raw).doubleValue();
+                    } else if (paramTypes[i] == long.class || paramTypes[i] == Long.class) {
+                        convertedArgs[i] = ((Number) raw).longValue();
+                    } else {
+                        convertedArgs[i] = raw;
+                    }
+                }
+
+                Object result = targetMethod.invoke(clazz.getDeclaredConstructor().newInstance(), convertedArgs);
+                caller.variables.put("RETF", result);
+
+            } catch (ClassNotFoundException | IllegalAccessException | IllegalArgumentException | InstantiationException | NoSuchMethodException | InvocationTargetException e) {
+                error("Failed to load native method: " + e.getMessage(), currentLine);
             }
         }
-
-        for (String key : toRemove) {
-            variables.remove(key);
-        }
-        for (Map.Entry<String, Object> entry : backups.entrySet()) {
-            variables.put(entry.getKey(), entry.getValue());
-        }
-        caller.variables.put("RETF", returnValue);
     }
 
      void ret(String[] parts) {
