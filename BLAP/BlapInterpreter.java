@@ -604,7 +604,9 @@ public class BlapInterpreter {
                     }
                 }
             } else if (parts[1].equals("retrieve")) {
-                kernel.add(new Scanner(System.in).nextLine());
+                try (Scanner scanner = new Scanner(System.in)) {
+                    kernel.add(scanner.nextLine());
+                }
             }
         }
         
