@@ -8,7 +8,6 @@ function blap {
         [Parameter(Mandatory = $true)]
         [string]$fileToRead
     )
-
     java (Enter Path Here)/BlapInterpreter.java $fileToRead
 }
 
