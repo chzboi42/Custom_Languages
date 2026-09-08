@@ -8,7 +8,7 @@ makes10(9, 9) → false
 makes10(1, 9) → true
 ##
 
-db makes10:num1:num2;
+fn makes10:num1:num2;
     cm num1 10;
         j e ret TRUE;
         j ne cm num2 10;

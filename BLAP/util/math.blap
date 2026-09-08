@@ -1,12 +1,12 @@
 ## Math Utility File ##
 
-db abs:num;
+fn abs:num;
     cm num 0;
         j l mul num -1;
     ret num;
 end abs;
 
-db clamp:num:min:max;
+fn clamp:num:min:max;
     cm num min;
         j l db num min;
     cm num max;
@@ -14,7 +14,7 @@ db clamp:num:min:max;
     ret num;
 end clamp;
 
-db factorial:n;
+fn factorial:n;
     cm n 1;
     j le ret 1;
 

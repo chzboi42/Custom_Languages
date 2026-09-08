@@ -5,7 +5,7 @@
 db seed1 123456789;
 db seed2 987654321;
 
-db randInt:min:max;
+fn randInt:min:max;
     mul seed1 40014;
     mod seed1 2147483563;
 
@@ -33,7 +33,7 @@ db randInt:min:max;
     alw cl *result;
 end randInt;
 
-db randDec:min:max;
+fn randDec:min:max;
     mul seed1 40014;
     mod seed1 2147483563;
 
