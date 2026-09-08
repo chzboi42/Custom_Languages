@@ -75,7 +75,7 @@ public class BlapInterpreter {
     }
 
 
-     void organizeCode(String code) {
+     private void organizeCode(String code) {
         variables.put("NLN", "\n");
         variables.put("RETF", null);
         variables.put("NULL", null);
@@ -157,7 +157,7 @@ public class BlapInterpreter {
         runCode(commands);
     }
 
-     void runCode(List<Command> commands) {
+     private void runCode(List<Command> commands) {
         int i = 0;
         while (i < commands.size()) {
             Command cmd = commands.get(i);
@@ -237,7 +237,7 @@ public class BlapInterpreter {
         }
     }
 
-     void runCommand(Command cmd) {
+     private void runCommand(Command cmd) {
         if (!kernel.isEmpty()) variables.put("KRNL_GTLTST", kernel.getLast());
         String[] parts = cmd.parts();
         switch (cmd.keyword()) {
@@ -440,7 +440,7 @@ public class BlapInterpreter {
         }
     }
 
-     void ret(String[] parts) {
+     private void ret(String[] parts) {
         if (parts.length < 2) {
             throw new Return(null);
         }
@@ -448,7 +448,7 @@ public class BlapInterpreter {
         throw new Return(val);
     }
 
-     Object parseValue(String val) {
+     private Object parseValue(String val) {
         if (val == null) return null;
 
         if (variables.containsKey(val)) {
@@ -471,7 +471,7 @@ public class BlapInterpreter {
         return null;
     }
 
-     Number parseNumber(String val) throws NumberFormatException {
+     private Number parseNumber(String val) throws NumberFormatException {
         try {
             return Long.parseLong(val);
         } catch (NumberFormatException e) {
@@ -479,7 +479,7 @@ public class BlapInterpreter {
         }
     }
 
-     double extractNumber(String token) {
+     private double extractNumber(String token) {
         try {
             return parseNumber(token).doubleValue();
         } catch (NumberFormatException ignored) {}
@@ -496,19 +496,19 @@ public class BlapInterpreter {
         return 0;
     }
 
-     Number formatNumber(double result) {
+     private Number formatNumber(double result) {
         if (result == (long) result) return (long) result;
         return result;
     }
 
-     void ascii(String[] parts) {
+     private void ascii(String[] parts) {
         Object val = variables.get(parts[1]);
         if (val instanceof String v && v.length() == 1) variables.put(parts[1], (long) v.charAt(0));
         else if (val instanceof Long) variables.put(parts[1], String.valueOf((char) ((Number) val).longValue()));
         else error("Value " + val + " is not a valid Character or Integer!", currentLine);
     }
 
-     void cm(String[] parts) {
+     private void cm(String[] parts) {
         if (parts.length < 3) {
             error("cm requires two arguments to compare", currentLine);
         }
@@ -534,7 +534,7 @@ public class BlapInterpreter {
         lastComparison = Double.compare(n1, n2);
     }
 
-     void j(String[] parts) {
+     private void j(String[] parts) {
         if (parts.length < 3) {
             error("j requires a comparator and a command to execute", currentLine);
         }
@@ -565,7 +565,7 @@ public class BlapInterpreter {
         }
     }
 
-     void db(String[] parts) {
+     private void db(String[] parts) {
         String val = parts[2].strip();
         try {
             variables.put(parts[1], parseNumber(val));
@@ -587,7 +587,7 @@ public class BlapInterpreter {
         error("Invalid value type: [" + val + "]", currentLine);
     }
 
-     void add(String[] parts) {
+     private void add(String[] parts) {
         Object current = variables.get(parts[1]);
         if (current instanceof String val) {
             String addend = variables.containsKey(parts[2]) ? String.valueOf(variables.get(parts[2])) : parts[2].replaceAll("^\"|\"$", "");
@@ -599,13 +599,13 @@ public class BlapInterpreter {
         }
     }
 
-     void sub(String[] parts) {
+     private void sub(String[] parts) {
         double subbed = extractNumber(parts[1]);
         double toSub = extractNumber(parts[2]);
         variables.put(parts[1], formatNumber(subbed - toSub));
     }
 
-     void mul(String[] parts) {
+     private void mul(String[] parts) {
         Object current = variables.get(parts[1]);
         if (current instanceof String value) {
             StringBuilder totalString = new StringBuilder();
@@ -621,35 +621,35 @@ public class BlapInterpreter {
         }
     }
 
-     void div(String[] parts) {
+     private void div(String[] parts) {
         double dividend = extractNumber(parts[1]);
         double divisor = extractNumber(parts[2]);
         variables.put(parts[1], formatNumber(dividend / divisor));
     }
 
-     void pow(String[] parts) {
+     private void pow(String[] parts) {
         double base = extractNumber(parts[1]);
         double power = extractNumber(parts[2]);
         variables.put(parts[1], formatNumber(Math.pow(base, power)));
     }
 
-     void mod(String[] parts) {
+     private void mod(String[] parts) {
         double val = extractNumber(parts[1]);
         double modBy = extractNumber(parts[2]);
         variables.put(parts[1], formatNumber(val % modBy));
     }
 
-     void floor(String[] parts) {
+     private void floor(String[] parts) {
         double val = extractNumber(parts[1]);
         variables.put(parts[1], formatNumber(Math.floor(val)));
     }
 
-     void ceil(String[] parts) {
+     private void ceil(String[] parts) {
         double val = extractNumber(parts[1]);
         variables.put(parts[1], formatNumber(Math.ceil(val)));
     }
 
-     void sy(String[] parts) {
+     private void sy(String[] parts) {
         if (parts[2].equals("kernel")) {
             if (parts[1].equals("launch")) {
                 for (Object e : kernel) {
@@ -668,7 +668,7 @@ public class BlapInterpreter {
         
     }
 
-     void mv(String[] parts) {
+     private void mv(String[] parts) {
         Object part1;
         try {
             part1 = parseNumber(parts[1]);
@@ -694,7 +694,7 @@ public class BlapInterpreter {
         }
     }
 
-     void cl(String[] parts) {
+     private void cl(String[] parts) {
         if (parts[1].equals("kernel")) {
             kernel.clear();
         } else if (parts[1].equals("*kernel")) {
@@ -712,7 +712,7 @@ public class BlapInterpreter {
         }
     }
 
-     void error(String error, int lineNum) {
+     private void error(String error, int lineNum) {
         System.err.println("BLAP Program Exception on Line " + lineNum + ": " + error);
         System.exit(1);
     }
