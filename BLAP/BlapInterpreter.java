@@ -18,7 +18,7 @@ public class BlapInterpreter {
      int lastComparison = 0;
      private BlapInterpreter caller;
 
-     enum Boolean {
+     private enum Boolean {
         TRUE,
         FALSE;
         static Boolean parse(String val) throws Exception {
@@ -34,18 +34,18 @@ public class BlapInterpreter {
         }
     }
 
-     class Break extends RuntimeException {}
-     class Continue extends RuntimeException {}
+    private class Break extends RuntimeException {}
+    private class Continue extends RuntimeException {}
 
-     class Return extends RuntimeException {
+    private class Return extends RuntimeException {
         final Object value;
         Return(Object value) {
             this.value = value;
         }
     }
 
-     final record Command(int lineNum, String keyword, String[] parts) {}
-     final record Function(BlapInterpreter owner, boolean isBlap, List<String> params, List<Command> commands, List<Command> alwaysRunCommands) {}
+    private final record Command(int lineNum, String keyword, String[] parts) {}
+    private final record Function(BlapInterpreter owner, boolean isBlap, List<String> params, List<Command> commands, List<Command> alwaysRunCommands) {}
 
     void main(String[] args) {
         if (args.length != 1) error("Usage: java BlapInterpreter <BLAP file>", 0);
