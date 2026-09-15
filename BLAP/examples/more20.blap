@@ -1,0 +1,31 @@
+##
+Adopted from CodingBat
+
+Return true if the given non-negative number 
+is 1 or 2 more than a multiple of 20.
+
+more20(20) → false
+more20(21) → true
+more20(22) → true
+##
+
+fn more20:n;
+    db x n;
+    sub x 1;
+    mod x 20;
+    cm x 0;
+        j e ret TRUE;
+    db x n;
+    sub x 2;
+    mod x 20;
+        j e ret TRUE;
+    ret FALSE;
+
+more20 23; -# FALSE;
+mv RETF kernel;
+mv NLN kernel;
+more20 22; -# TRUE;
+mv RETF kernel;
+sy launch kernel;
+
+cl kernel;
