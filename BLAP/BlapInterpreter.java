@@ -268,7 +268,8 @@ public class BlapInterpreter {
                         error("Value is inherently not a number!", currentLine);
                     }
                 }
-            }
+            } 
+            case "mkstr" -> variables.put(parts[1], String.valueOf(variables.get(parts[1])));
             case "brk" -> throw new Break();
             case "cnt" -> throw new Continue();
             case "loop-end" -> error("Unexpected loop-end encountered", cmd.lineNum());
