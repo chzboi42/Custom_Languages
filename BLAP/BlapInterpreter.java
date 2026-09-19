@@ -17,6 +17,7 @@ public class BlapInterpreter {
      int currentLine = 0;
      int lastComparison = 0;
      private BlapInterpreter caller;
+     private final Scanner scanner = new Scanner(System.in);
 
      private enum Boolean {
         TRUE,
@@ -661,9 +662,7 @@ public class BlapInterpreter {
                     }
                 }
             } else if (parts[1].equals("retrieve")) {
-                try (Scanner scanner = new Scanner(System.in)) {
-                    kernel.add(scanner.nextLine());
-                }
+                if (scanner.hasNextLine()) kernel.add(scanner.nextLine());
             }
         }
         
@@ -702,6 +701,7 @@ public class BlapInterpreter {
             kernel = null;
         } else if (parts[1].startsWith("*") && variables.containsKey(parts[1].substring(1))) {
             variables.remove(parts[1].substring(1));
+            kernel.remove(parts[1].substring(1));
         } else if (variables.containsKey(parts[1])) {
             Object obj = variables.get(parts[1]);
             if (obj instanceof Number) variables.put(parts[1], 0);
