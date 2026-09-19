@@ -5,6 +5,8 @@
 db seed1 123456789;
 db seed2 987654321;
 
+javafn randLong:min:max java.util.random.RandomGenerator getDefault.nextLong;
+
 fn randInt:min:max;
     mul seed1 40014;
     mod seed1 2147483563;
