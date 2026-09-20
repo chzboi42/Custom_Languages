@@ -12,14 +12,23 @@ import java.util.StringTokenizer;
 import java.util.regex.Pattern;
 
 public class BlapInterpreter {
-     final HashMap<String, Object> variables = new HashMap<>();
+
+    private final class Cell {
+        Object value;
+
+        Cell(Object value) {
+            this.value = value;
+        }
+    }
+
+     final HashMap<String, Cell> variables = new HashMap<>();
      ArrayList<Object> kernel = new ArrayList<>();
      int currentLine = 0;
      int lastComparison = 0;
      private BlapInterpreter caller;
      private final Scanner scanner = new Scanner(System.in);
 
-     private enum Boolean {
+    private enum Boolean {
         TRUE,
         FALSE;
         static Boolean parse(String val) throws Exception {
@@ -37,7 +46,6 @@ public class BlapInterpreter {
 
     private class Break extends RuntimeException {}
     private class Continue extends RuntimeException {}
-
     private class Return extends RuntimeException {
         final Object value;
         Return(Object value) {
@@ -77,7 +85,7 @@ public class BlapInterpreter {
 
 
      private void organizeCode(String code) {
-        variables.put("NLN", "\n");
+        variables.put("NLN", new Cell("\n"));
         variables.put("RETF", null);
         variables.put("NULL", null);
         variables.put("KRNL_GTLTST", null);
@@ -127,7 +135,7 @@ public class BlapInterpreter {
                     error("Unterminated function: " + funcName + " (missing 'end " + funcName + ";')", line);
                 }
                 
-                caller.variables.put(funcName, new Function(this, true, params, funcBody, alwaysRunCommands));
+                caller.variables.put(funcName, new Cell(new Function(this, true, params, funcBody, alwaysRunCommands)));
                 continue;
             }
 
@@ -141,13 +149,13 @@ public class BlapInterpreter {
                 }
                 caller.variables.put(
                     funcSig[0],
-                    new Function(
+                    new Cell(new Function(
                         this,
                         false,
                         params,
                         List.of(new Command(line, parts[2], null), new Command(line, parts[3], null)),
                         null
-                    )
+                    ))
                 );
                 continue;
             }
@@ -207,10 +215,10 @@ public class BlapInterpreter {
                 double step = extractNumber(sequence[2]);
 
                 for (double val = start; val < end; val += step) {
-                    if (val == (int) val) {
-                        variables.put(varName, (int) val);
+                    if (val == (long) val) {
+                        variables.put(varName, new Cell((long) val));
                     } else {
-                        variables.put(varName, val);
+                        variables.put(varName, new Cell(val));
                     }
 
                     boolean isBreak = false;
@@ -239,7 +247,7 @@ public class BlapInterpreter {
     }
 
      private void runCommand(Command cmd) {
-        if (!kernel.isEmpty()) variables.put("KRNL_GTLTST", kernel.getLast());
+        if (!kernel.isEmpty()) variables.put("KRNL_GTLTST", new Cell(kernel.getLast()));
         String[] parts = cmd.parts();
         switch (cmd.keyword()) {
             case "use" -> new BlapInterpreter().start(parts[1], this);
@@ -261,16 +269,16 @@ public class BlapInterpreter {
             case "j" -> j(parts);
             case "mknum" -> {
                 try {
-                    variables.put(parts[1], Long.parseLong(String.valueOf(variables.get(parts[1]))));
+                    variables.put(parts[1], new Cell(Long.parseLong(String.valueOf(variables.get(parts[1]).value))));
                 } catch (NumberFormatException e) {
                     try {
-                        variables.put(parts[1], Double.parseDouble(String.valueOf(variables.get(parts[1]))));
+                        variables.put(parts[1], new Cell(Double.parseDouble(String.valueOf(variables.get(parts[1]).value))));
                     } catch (NumberFormatException f) {
                         error("Value is inherently not a number!", currentLine);
                     }
                 }
             } 
-            case "mkstr" -> variables.put(parts[1], String.valueOf(variables.get(parts[1])));
+            case "mkstr" -> variables.put(parts[1], new Cell(String.valueOf(variables.get(parts[1]).value)));
             case "brk" -> throw new Break();
             case "cnt" -> throw new Continue();
             case "loop-end" -> error("Unexpected loop-end encountered", cmd.lineNum());
@@ -278,7 +286,7 @@ public class BlapInterpreter {
             case "end" -> System.exit(0);
             default -> {
                 // If it's not a built-in command, check if it's a function call
-                if (variables.containsKey(cmd.keyword()) && variables.get(cmd.keyword()) instanceof Function func) {
+                if (variables.containsKey(cmd.keyword()) && variables.get(cmd.keyword()).value instanceof Function func) {
                     func.owner().callFunction(func, cmd);
                 } else {
                     error(parts[0] + " did not match any keyword!", cmd.lineNum());
@@ -311,11 +319,11 @@ public class BlapInterpreter {
                 Object argValue = parseValue(argList.get(i));
 
                 if (variables.containsKey(paramName)) {
-                    backups.put(paramName, variables.get(paramName));
+                    backups.put(paramName, variables.get(paramName).value);
                 } else {
                     toRemove.add(paramName);
                 }
-                variables.put(paramName, argValue);
+                variables.put(paramName, new Cell(argValue));
             }
 
             Object returnValue = null;
@@ -333,9 +341,9 @@ public class BlapInterpreter {
                 variables.remove(key);
             }
             for (Map.Entry<String, Object> entry : backups.entrySet()) {
-                variables.put(entry.getKey(), entry.getValue());
+                variables.put(entry.getKey(), new Cell(entry.getValue()));
             }
-            caller.variables.put("RETF", returnValue);
+            caller.variables.put("RETF", new Cell(returnValue));
         }
         else {
             String className = func.commands().get(0).keyword();
@@ -434,7 +442,7 @@ public class BlapInterpreter {
                         currentClass = currentObj.getClass();
                     }
                 }
-                caller.variables.put("RETF", currentObj);
+                caller.variables.put("RETF", new Cell(currentObj));
 
             } catch (ClassNotFoundException | IllegalAccessException | IllegalArgumentException | InstantiationException | NoSuchMethodException | InvocationTargetException e) {
                 error("Failed to load native method: " + e.getMessage(), currentLine);
@@ -450,11 +458,19 @@ public class BlapInterpreter {
         throw new Return(val);
     }
 
+    private boolean isPointer(String arg) {
+        return arg.startsWith("*");
+    }
+
+    private String getCleanName(String arg) {
+        return arg.startsWith("*") ? arg.substring(1) : arg;
+    }
+
      private Object parseValue(String val) {
         if (val == null) return null;
 
         if (variables.containsKey(val)) {
-            return variables.get(val);
+            return variables.get(val).value;
         }
 
         try {
@@ -487,7 +503,7 @@ public class BlapInterpreter {
         } catch (NumberFormatException ignored) {}
 
         if (variables.containsKey(token)) {
-            Object obj = variables.get(token);
+            Object obj = variables.get(token).value;
             if (obj instanceof Number num) {
                 return num.doubleValue();
             }
@@ -504,9 +520,9 @@ public class BlapInterpreter {
     }
 
      private void ascii(String[] parts) {
-        Object val = variables.get(parts[1]);
-        if (val instanceof String v && v.length() == 1) variables.put(parts[1], (long) v.charAt(0));
-        else if (val instanceof Long) variables.put(parts[1], String.valueOf((char) ((Number) val).longValue()));
+        Object val = variables.get(parts[1]).value;
+        if (val instanceof String v && v.length() == 1) variables.put(parts[1], new Cell((long) v.charAt(0)));
+        else if (val instanceof Long) variables.put(parts[1], new Cell(String.valueOf((char) ((Number) val).longValue())));
         else error("Value " + val + " is not a valid Character or Integer!", currentLine);
     }
 
@@ -518,8 +534,8 @@ public class BlapInterpreter {
             try {
                     n1 = Boolean.parse(parts[1]).equals(Boolean.TRUE) ? 1 : 0;
             } catch (Exception e) {
-                if (variables.get(parts[1]) instanceof Boolean) {
-                    n1 = variables.get(parts[1]).equals(Boolean.TRUE) ? 1 : 0;
+                if (variables.get(parts[1]).value instanceof Boolean) {
+                    n1 = variables.get(parts[1]).value.equals(Boolean.TRUE) ? 1 : 0;
                 } else {
                     n1 = extractNumber(parts[1]);
                 }
@@ -527,8 +543,8 @@ public class BlapInterpreter {
             try {
                 n2 = Boolean.parse(parts[2]).equals(Boolean.TRUE) ? 1 : 0;
             } catch (Exception e) {
-                if (variables.get(parts[2]) instanceof Boolean) {
-                    n2 = variables.get(parts[2]).equals(Boolean.TRUE) ? 1 : 0;
+                if (variables.get(parts[2]).value instanceof Boolean) {
+                    n2 = variables.get(parts[2]).value.equals(Boolean.TRUE) ? 1 : 0;
                 } else {
                     n2 = extractNumber(parts[2]);
                 }
@@ -550,7 +566,7 @@ public class BlapInterpreter {
             case "le" -> lastComparison <= 0;
             case "nle" -> !(lastComparison <= 0);
             case "e" -> lastComparison == 0;
-            case "ne" -> !(lastComparison == 0);
+            case "ne" -> lastComparison != 0;
             case "ge" -> lastComparison >= 0;
             case "nge" -> !(lastComparison >= 0);
             case "g" -> lastComparison > 0;
@@ -569,90 +585,93 @@ public class BlapInterpreter {
 
      private void db(String[] parts) {
         String val = parts[2].strip();
+        if (isPointer(val)) {
+            variables.put(parts[1], variables.get(getCleanName(val)));
+            return;
+        }
         try {
-            variables.put(parts[1], parseNumber(val));
+            variables.put(parts[1], new Cell(parseNumber(val)));
             return;
         } catch (NumberFormatException ignored) {}
-
         try {
-            variables.put(parts[1], Boolean.parse(val));
+            variables.put(parts[1], new Cell(Boolean.parse(val)));
             return;
         } catch (Exception ignored) {} 
 
         if (val.startsWith("\"") && val.endsWith("\"")) {
-            variables.put(parts[1], val.substring(1, val.length() - 1));
+            variables.put(parts[1], new Cell(val.substring(1, val.length() - 1)));
             return;
         } else if (variables.containsKey(val)) {
-            variables.put(parts[1], variables.get(val));
+            variables.put(parts[1], new Cell(variables.get(val).value));
             return;
         }
         error("Invalid value type: [" + val + "]", currentLine);
     }
 
      private void add(String[] parts) {
-        Object current = variables.get(parts[1]);
-        if (current instanceof String val) {
-            String addend = variables.containsKey(parts[2]) ? String.valueOf(variables.get(parts[2])) : parts[2].replaceAll("^\"|\"$", "");
-            variables.put(parts[1], val + addend);
+        if (variables.get(parts[1]).value instanceof String val) {
+            String addend = variables.containsKey(parts[2]) ? String.valueOf(variables.get(parts[2]).value) : parts[2].replaceAll("^\"|\"$", "");
+            variables.get(parts[1]).value = val + addend;
         } else {
             double target = extractNumber(parts[1]);
             double addend = extractNumber(parts[2]);
-            variables.put(parts[1], formatNumber(target + addend));
+            variables.get(parts[1]).value = formatNumber(target + addend);
         }
     }
 
      private void sub(String[] parts) {
         double subbed = extractNumber(parts[1]);
         double toSub = extractNumber(parts[2]);
-        variables.put(parts[1], formatNumber(subbed - toSub));
+        variables.get(parts[1]).value =  formatNumber(subbed - toSub);
     }
 
      private void mul(String[] parts) {
-        Object current = variables.get(parts[1]);
+        Object current = variables.get(parts[1]).value;
         if (current instanceof String value) {
             StringBuilder totalString = new StringBuilder();
             int multiplier = (int) extractNumber(parts[2]);
             for (int i = 0; i < multiplier; i++) {
                 totalString.append(value);
             }
-            variables.put(parts[1], totalString.toString());
+            variables.get(parts[1]).value = totalString.toString();
         } else {
             double value = extractNumber(parts[1]);
             double multiplier = extractNumber(parts[2]);
-            variables.put(parts[1], formatNumber(value * multiplier));
+            variables.get(parts[1]).value = formatNumber(value * multiplier);
         }
     }
 
      private void div(String[] parts) {
         double dividend = extractNumber(parts[1]);
         double divisor = extractNumber(parts[2]);
-        variables.put(parts[1], formatNumber(dividend / divisor));
+        variables.get(parts[1]).value = formatNumber(dividend / divisor);
     }
 
      private void pow(String[] parts) {
         double base = extractNumber(parts[1]);
         double power = extractNumber(parts[2]);
-        variables.put(parts[1], formatNumber(Math.pow(base, power)));
+        variables.get(parts[1]).value = formatNumber(Math.pow(base, power));
     }
 
      private void mod(String[] parts) {
         double val = extractNumber(parts[1]);
         double modBy = extractNumber(parts[2]);
-        variables.put(parts[1], formatNumber(val % modBy));
+        variables.get(parts[1]).value = formatNumber(val % modBy);
     }
 
      private void floor(String[] parts) {
         double val = extractNumber(parts[1]);
-        variables.put(parts[1], formatNumber(Math.floor(val)));
+        variables.get(parts[1]).value = formatNumber(Math.floor(val));
     }
 
      private void ceil(String[] parts) {
         double val = extractNumber(parts[1]);
-        variables.put(parts[1], formatNumber(Math.ceil(val)));
+        variables.get(parts[1]).value = formatNumber(Math.ceil(val));
     }
 
      private void sy(String[] parts) {
         if (parts[2].equals("kernel")) {
+            if (kernel == null) error("Kernel is destroyed!", currentLine); 
             if (parts[1].equals("launch")) {
                 for (Object e : kernel) {
                     if ("\\n".equals(e)) {
@@ -669,26 +688,29 @@ public class BlapInterpreter {
     }
 
      private void mv(String[] parts) {
-        Object part1;
+        Object part1 = getCleanName(parts[1]);
         try {
-            part1 = parseNumber(parts[1]);
+            part1 = parseNumber(((String) part1));
         } catch (NumberFormatException l) {
-            if (parts[1].equals("TRUE") || parts[1].equals("FALSE")) {
-                part1 = parts[1].equals("TRUE") ? Boolean.TRUE : Boolean.FALSE;
-            } else if (parts[1].length() >= 2 && parts[1].startsWith("\"") && parts[1].endsWith("\"")) {
-                part1 = parts[1].substring(1, parts[1].length() - 1);
-            } else if (variables.containsKey(parts[1])) {
-                part1 = variables.get(parts[1]);
+            if (((String) part1).equals("TRUE") || ((String) part1).equals("FALSE")) {
+                part1 = ((String) part1).equals("TRUE") ? Boolean.TRUE : Boolean.FALSE;
+            } else if (((String) part1).length() >= 2 && ((String) part1).startsWith("\"") && ((String) part1).endsWith("\"")) {
+                part1 = ((String) part1).substring(1, parts[1].length() - 1);
+            } else if (variables.containsKey((String) part1)) {
+                part1 = variables.get((String) part1).value;
             } else {
-                error("Variable " + parts[1] + " could not be found!", currentLine);
+                error("Variable " + part1 + " could not be found!", currentLine);
                 return;
             }
         }
 
         if (parts[2].equals("kernel")) {
+            if (kernel == null) error("Kernel is destroyed!", currentLine);
             kernel.add(part1);
+            if (isPointer(parts[1])) variables.remove(getCleanName(parts[1]));
         } else if (variables.containsKey(parts[2])) {
-            variables.put(parts[2], part1);
+            variables.put(parts[2], new Cell(part1));
+            if (isPointer(parts[1])) variables.remove(getCleanName(parts[1]));
         } else {
             error("Target location [" + parts[2] + "] not found!", currentLine);
         }
@@ -699,14 +721,14 @@ public class BlapInterpreter {
             kernel.clear();
         } else if (parts[1].equals("*kernel")) {
             kernel = null;
-        } else if (parts[1].startsWith("*") && variables.containsKey(parts[1].substring(1))) {
-            variables.remove(parts[1].substring(1));
-            kernel.remove(parts[1].substring(1));
+        } else if (isPointer(parts[1])) {
+            variables.remove(getCleanName(parts[1]));
+            kernel.remove(getCleanName(parts[1]));
         } else if (variables.containsKey(parts[1])) {
-            Object obj = variables.get(parts[1]);
-            if (obj instanceof Number) variables.put(parts[1], 0);
-            else if (obj instanceof Boolean) variables.put(parts[1], false);
-            else if (obj instanceof String) variables.put(parts[1], "");
+            Cell obj = variables.get(parts[1]);
+            if (obj.value instanceof Number) obj.value = 0;
+            else if (obj.value instanceof Boolean) obj.value = Boolean.FALSE;
+            else if (obj.value instanceof String) obj.value = "";
             else error("Variable " + parts[1] + " is not an allowed type! [" + parts[1].getClass().getSimpleName() + "]", currentLine);
         } else {
             error("Cannot find variable " + parts[1], currentLine);
