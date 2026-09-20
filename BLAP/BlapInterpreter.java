@@ -247,6 +247,7 @@ public class BlapInterpreter {
     }
 
      private void runCommand(Command cmd) {
+        if (kernel == null) error("Kernel is destroyed!", currentLine);
         if (!kernel.isEmpty()) variables.put("KRNL_GTLTST", new Cell(kernel.getLast()));
         String[] parts = cmd.parts();
         switch (cmd.keyword()) {
