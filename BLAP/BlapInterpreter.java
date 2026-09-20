@@ -86,7 +86,7 @@ public class BlapInterpreter {
 
      private void organizeCode(String code) {
         variables.put("NLN", new Cell("\n"));
-        variables.put("RETF", null);
+        variables.put("RETF", new Cell(null));
         variables.put("NULL", null);
         variables.put("KRNL_GTLTST", null);
 
@@ -343,7 +343,7 @@ public class BlapInterpreter {
             for (Map.Entry<String, Object> entry : backups.entrySet()) {
                 variables.put(entry.getKey(), new Cell(entry.getValue()));
             }
-            caller.variables.put("RETF", new Cell(returnValue));
+            caller.variables.get("RETF").value = returnValue;
         }
         else {
             String className = func.commands().get(0).keyword();
@@ -442,7 +442,7 @@ public class BlapInterpreter {
                         currentClass = currentObj.getClass();
                     }
                 }
-                caller.variables.put("RETF", new Cell(currentObj));
+                caller.variables.get("RETF").value = currentObj;
 
             } catch (ClassNotFoundException | IllegalAccessException | IllegalArgumentException | InstantiationException | NoSuchMethodException | InvocationTargetException e) {
                 error("Failed to load native method: " + e.getMessage(), currentLine);
