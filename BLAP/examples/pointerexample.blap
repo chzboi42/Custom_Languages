@@ -1,0 +1,31 @@
+##
+Shows how pointers work vs normal variable assignments
+##
+
+db x 3;
+db y x; -# takes a snapshot of x's value and assigns it to y. In this case, y = 3.;
+add x 1;
+mv y kernel; -# the kernel will print the number 3.;
+mv NLN kernel;
+sy launch kernel;
+cl kernel;
+
+db x 3;
+db y *x; -# Attaches y to x. Y will redirect any reference to it back to x, as it IS x now.;
+add x 1;
+mv y kernel; -# the kernel will print the number 4. When we access y, we access x. Therefore, we are basically moving x to the kernel, which yields the number 4.;
+mv NLN kernel;
+sy launch kernel;
+cl kernel;
+
+-# The variable y still exists, we just moved a copy of it to the kernel.;
+mv *y kernel -# this moves the actual reference of y to the kernel, so y no longer exists now.;
+-# mv y kernel will not work, as y is deleted from memory.;
+
+-# Similarly, moving y's reference elsewhere will delete it, while merely moving a copy will keep the reference.;
+mv y x; -# takes the value of y, assigns it to x. Both variables still exist.;
+m *y x; -# Takes y itself, moves it to x, and deletes all other references of y. Y no longer exists.;
+
+-# Clearing a variable;
+cl x; -# X is a number, so it will be set to 0. X still exists.;
+cl *x -# We are clearing all references to x. Therefore, x is deleted and no longer exists in memory.;
