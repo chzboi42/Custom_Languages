@@ -87,8 +87,8 @@ public class BlapInterpreter {
      private void organizeCode(String code) {
         variables.put("NLN", new Cell("\n"));
         variables.put("RETF", new Cell(null));
-        variables.put("NULL", null);
-        variables.put("KRNL_GTLTST", null);
+        variables.put("NULL", new Cell(null));
+        variables.put("KRNL_GTLTST", new Cell(null));
 
         List<Command> commands = new ArrayList<>();
         StringTokenizer st = new StringTokenizer(code, ";");
