@@ -19,12 +19,14 @@ sy launch kernel;
 cl kernel;
 
 -# The variable y still exists, we just moved a copy of it to the kernel.;
-mv *y kernel -# this moves the actual reference of y to the kernel, so y no longer exists now.;
+mv *y kernel; -# this moves the actual reference of y to the kernel, so y no longer exists now.;
 -# mv y kernel will not work, as y is deleted from memory.;
+
+db y 2;
 
 -# Similarly, moving y's reference elsewhere will delete it, while merely moving a copy will keep the reference.;
 mv y x; -# takes the value of y, assigns it to x. Both variables still exist.;
-m *y x; -# Takes y itself, moves it to x, and deletes all other references of y. Y no longer exists.;
+mv *y x; -# Takes y itself, moves it to x, and deletes all other references of y. Y no longer exists.;
 
 -# Clearing a variable;
 cl x; -# X is a number, so it will be set to 0. X still exists.;
