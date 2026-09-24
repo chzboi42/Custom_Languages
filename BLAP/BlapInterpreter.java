@@ -6,7 +6,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Scanner;
 import java.util.StringTokenizer;
 import java.util.regex.Pattern;
@@ -312,18 +311,9 @@ public class BlapInterpreter {
                 error("Function " + cmd.keyword() + " expects " + func.params().size() + " arguments, but got " + argList.size(), cmd.lineNum());
             }
 
-            HashMap<String, Object> backups = new HashMap<>();
-            List<String> toRemove = new ArrayList<>();
-
             for (int i = 0; i < func.params().size(); i++) {
                 String paramName = func.params().get(i);
-                Object argValue = parseValue(argList.get(i));
-
-                if (variables.containsKey(paramName)) {
-                    backups.put(paramName, variables.get(paramName).value);
-                } else {
-                    toRemove.add(paramName);
-                }
+                Object argValue = parseValue(getCleanName(argList.get(i)));
                 variables.put(paramName, new Cell(argValue));
             }
 
@@ -336,13 +326,9 @@ public class BlapInterpreter {
                 for (Command c : func.alwaysRunCommands()) {
                     runCommand(c);
                 }
-            }
-
-            for (String key : toRemove) {
-                variables.remove(key);
-            }
-            for (Map.Entry<String, Object> entry : backups.entrySet()) {
-                variables.put(entry.getKey(), new Cell(entry.getValue()));
+                for (int i = 0; i < func.params().size(); i++) {
+                    if (isPointer(argList.get(i))) caller.variables.get(getCleanName(argList.get(i))).value = variables.get(func.params().get(i)).value;
+                }
             }
             caller.variables.get("RETF").value = returnValue;
         }
