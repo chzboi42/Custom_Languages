@@ -20,12 +20,12 @@ public class BlapInterpreter {
         }
     }
 
-     final HashMap<String, Cell> variables = new HashMap<>();
-     ArrayList<Object> kernel = new ArrayList<>();
-     int currentLine = 0;
-     int lastComparison = 0;
-     private BlapInterpreter caller;
-     private final Scanner scanner = new Scanner(System.in);
+    private HashMap<String, Cell> variables = new HashMap<>();
+    private ArrayList<Object> kernel = new ArrayList<>();
+    private int currentLine = 0;
+    private int lastComparison = 0;
+    private BlapInterpreter caller;
+    private final Scanner scanner = new Scanner(System.in);
 
     private enum Boolean {
         TRUE,
@@ -311,10 +311,15 @@ public class BlapInterpreter {
                 error("Function " + cmd.keyword() + " expects " + func.params().size() + " arguments, but got " + argList.size(), cmd.lineNum());
             }
 
+            HashMap<String, Cell> savedVariables = new HashMap<>(this.variables);
+            HashMap<String, Cell> params = new HashMap<>(savedVariables);
+            this.variables = params;
+
+
             for (int i = 0; i < func.params().size(); i++) {
                 String paramName = func.params().get(i);
                 Object argValue = parseValue(getCleanName(argList.get(i)));
-                variables.put(paramName, new Cell(argValue));
+                params.put(paramName, new Cell(argValue));
             }
 
             Object returnValue = null;
@@ -326,9 +331,14 @@ public class BlapInterpreter {
                 for (Command c : func.alwaysRunCommands()) {
                     runCommand(c);
                 }
-                for (int i = 0; i < func.params().size(); i++) {
-                    if (isPointer(argList.get(i))) caller.variables.get(getCleanName(argList.get(i))).value = variables.get(func.params().get(i)).value;
+                try {
+                    for (int i = 0; i < func.params().size(); i++) {
+                        if (isPointer(argList.get(i))) caller.variables.get(getCleanName(argList.get(i))).value = params.get(func.params().get(i)).value;
+                    }
+                } catch (Exception e) {
+                    error("Variable cannot be found!", currentLine);
                 }
+            this.variables = savedVariables;
             }
             caller.variables.get("RETF").value = returnValue;
         }
@@ -519,9 +529,9 @@ public class BlapInterpreter {
         }
         double n1, n2;
             try {
-                    n1 = Boolean.parse(parts[1]).equals(Boolean.TRUE) ? 1 : 0;
+                n1 = Boolean.parse(parts[1]).equals(Boolean.TRUE) ? 1 : 0;
             } catch (Exception e) {
-                if (variables.get(parts[1]).value instanceof Boolean) {
+                if (variables.containsKey(parts[1]) && variables.get(parts[1]).value instanceof Boolean) {
                     n1 = variables.get(parts[1]).value.equals(Boolean.TRUE) ? 1 : 0;
                 } else {
                     n1 = extractNumber(parts[1]);
@@ -530,7 +540,7 @@ public class BlapInterpreter {
             try {
                 n2 = Boolean.parse(parts[2]).equals(Boolean.TRUE) ? 1 : 0;
             } catch (Exception e) {
-                if (variables.get(parts[2]).value instanceof Boolean) {
+                if (variables.containsKey(parts[2]) && variables.get(parts[2]).value instanceof Boolean) {
                     n2 = variables.get(parts[2]).value.equals(Boolean.TRUE) ? 1 : 0;
                 } else {
                     n2 = extractNumber(parts[2]);
@@ -596,7 +606,7 @@ public class BlapInterpreter {
     }
 
      private void add(String[] parts) {
-        if (variables.get(parts[1]).value instanceof String val) {
+        if (variables.containsKey(parts[1]) && variables.get(parts[1]).value instanceof String val) {
             String addend = variables.containsKey(parts[2]) ? String.valueOf(variables.get(parts[2]).value) : parts[2].replaceAll("^\"|\"$", "");
             variables.get(parts[1]).value = val + addend;
         } else {
@@ -613,7 +623,9 @@ public class BlapInterpreter {
     }
 
      private void mul(String[] parts) {
-        Object current = variables.get(parts[1]).value;
+        Object current = variables.get(parts[1]);
+        if (variables.containsKey(parts[1])) current = ((Cell) current).value;
+        else error("Command \"mul\" requires a variable as the subject but variable " + parts[1] + " does not exist!", currentLine);
         if (current instanceof String value) {
             StringBuilder totalString = new StringBuilder();
             int multiplier = (int) extractNumber(parts[2]);
